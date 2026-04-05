@@ -177,9 +177,9 @@ public class PillBoxActivity extends AppCompatActivity {
         String apiKey = BuildConfig.GEMINI_API_KEY;
 
         String prompt = "You are analyzing a photo of a round pill organizer with 7 compartments arranged in a circle (one for each day of the week). "
+                + "The days are marked with Hebrew letters: א (Sunday), ב (Monday), ג (Tuesday), ד (Wednesday), ה (Thursday), ו (Friday), ש (Shabbat/Saturday). "
                 + "For each compartment, determine if it is EMPTY or FULL (contains pills). "
-                + "List each compartment with its status. If you can identify day labels, use them. "
-                + "Otherwise number them 1-7 clockwise from the top. "
+                + "List each compartment by its Hebrew letter and day name. "
                 + "At the end, give a summary of how many are empty and how many are full. "
                 + "Format the response clearly with emoji: ✅ for full, ❌ for empty.";
 
