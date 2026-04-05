@@ -5,13 +5,17 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
@@ -20,7 +24,9 @@ import com.wsapp.taskviewer.adapter.TaskAdapter;
 import com.wsapp.taskviewer.model.Task;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener {
 
@@ -44,6 +50,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         recyclerView = findViewById(R.id.recyclerView);
         swipeRefresh = findViewById(R.id.swipeRefresh);
         emptyView = findViewById(R.id.emptyView);
+        FloatingActionButton fabAdd = findViewById(R.id.fabAdd);
 
         adapter = new TaskAdapter(this);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -52,8 +59,59 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         db = FirebaseFirestore.getInstance();
 
         swipeRefresh.setOnRefreshListener(this::attachListener);
+        fabAdd.setOnClickListener(v -> showAddTaskDialog());
 
         attachListener();
+    }
+
+    private void showAddTaskDialog() {
+        EditText input = new EditText(this);
+        input.setHint("Task description");
+        input.setPadding(48, 32, 48, 16);
+
+        new AlertDialog.Builder(this)
+                .setTitle("New Task")
+                .setView(input)
+                .setPositiveButton("Add", (dialog, which) -> {
+                    String text = input.getText().toString().trim();
+                    if (!text.isEmpty()) {
+                        createTask(text);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void createTask(String text) {
+        db.collection("tasks")
+                .orderBy("id", Query.Direction.DESCENDING)
+                .limit(1)
+                .get()
+                .addOnSuccessListener(snapshots -> {
+                    int nextId = 1;
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        Task last = doc.toObject(Task.class);
+                        nextId = last.getId() + 1;
+                    }
+
+                    Map<String, Object> task = new HashMap<>();
+                    task.put("id", nextId);
+                    task.put("origSender", "android");
+                    task.put("origChatName", "android");
+                    task.put("text", text);
+                    task.put("summary", text);
+                    task.put("actionItems", new ArrayList<>());
+                    task.put("createdAt", new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                            java.util.Locale.US).format(new java.util.Date()));
+                    task.put("status", "pending");
+                    task.put("completedAt", null);
+                    task.put("notes", new ArrayList<>());
+
+                    db.collection("tasks").document(String.valueOf(nextId))
+                            .set(task)
+                            .addOnSuccessListener(v -> Toast.makeText(this, "Task created", Toast.LENGTH_SHORT).show())
+                            .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                });
     }
 
     private void attachListener() {

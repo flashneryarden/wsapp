@@ -2,12 +2,18 @@ package com.wsapp.taskviewer;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.button.MaterialButton;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.wsapp.taskviewer.model.Task;
 
 import java.text.ParseException;
@@ -23,8 +29,12 @@ public class TaskDetailActivity extends AppCompatActivity {
     private LinearLayout actionItemsContainer, notesContainer;
     private TextView actionItemsLabel, notesLabel;
     private TextView completedText;
+    private MaterialButton btnToggleStatus, btnAddNote, btnDelete;
 
     private FirebaseFirestore db;
+    private ListenerRegistration listenerRegistration;
+    private int taskId;
+    private Task currentTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,32 +59,96 @@ public class TaskDetailActivity extends AppCompatActivity {
         actionItemsLabel = findViewById(R.id.actionItemsLabel);
         notesContainer = findViewById(R.id.notesContainer);
         notesLabel = findViewById(R.id.notesLabel);
+        btnToggleStatus = findViewById(R.id.btnToggleStatus);
+        btnAddNote = findViewById(R.id.btnAddNote);
+        btnDelete = findViewById(R.id.btnDelete);
 
         db = FirebaseFirestore.getInstance();
 
-        int taskId = getIntent().getIntExtra("task_id", -1);
+        taskId = getIntent().getIntExtra("task_id", -1);
         if (taskId == -1) {
             finish();
             return;
         }
 
         setTitle("Task #" + taskId);
+
+        btnToggleStatus.setOnClickListener(v -> toggleStatus());
+        btnAddNote.setOnClickListener(v -> showAddNoteDialog());
+        btnDelete.setOnClickListener(v -> confirmDelete());
+
         loadTask(taskId);
     }
 
     private void loadTask(int taskId) {
-        db.collection("tasks").document(String.valueOf(taskId))
+        listenerRegistration = db.collection("tasks").document(String.valueOf(taskId))
                 .addSnapshotListener((snapshot, error) -> {
                     if (error != null || snapshot == null || !snapshot.exists()) {
                         taskTitle.setText("Task not found");
                         return;
                     }
 
-                    Task task = snapshot.toObject(Task.class);
-                    if (task != null) {
-                        displayTask(task);
+                    currentTask = snapshot.toObject(Task.class);
+                    if (currentTask != null) {
+                        displayTask(currentTask);
                     }
                 });
+    }
+
+    private void toggleStatus() {
+        if (currentTask == null) return;
+        String docId = String.valueOf(taskId);
+
+        if (currentTask.isPending()) {
+            String now = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date());
+            db.collection("tasks").document(docId)
+                    .update("status", "done", "completedAt", now)
+                    .addOnSuccessListener(v -> Toast.makeText(this, "Marked done ✅", Toast.LENGTH_SHORT).show())
+                    .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        } else {
+            db.collection("tasks").document(docId)
+                    .update("status", "pending", "completedAt", null)
+                    .addOnSuccessListener(v -> Toast.makeText(this, "Reopened ⏳", Toast.LENGTH_SHORT).show())
+                    .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        }
+    }
+
+    private void showAddNoteDialog() {
+        EditText input = new EditText(this);
+        input.setHint("Note text");
+        input.setPadding(48, 32, 48, 16);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Add Note")
+                .setView(input)
+                .setPositiveButton("Add", (dialog, which) -> {
+                    String note = input.getText().toString().trim();
+                    if (!note.isEmpty()) {
+                        db.collection("tasks").document(String.valueOf(taskId))
+                                .update("notes", FieldValue.arrayUnion(note))
+                                .addOnSuccessListener(v -> Toast.makeText(this, "Note added", Toast.LENGTH_SHORT).show())
+                                .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void confirmDelete() {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Task")
+                .setMessage("Are you sure you want to delete task #" + taskId + "?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    db.collection("tasks").document(String.valueOf(taskId))
+                            .delete()
+                            .addOnSuccessListener(v -> {
+                                Toast.makeText(this, "Task deleted", Toast.LENGTH_SHORT).show();
+                                finish();
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void displayTask(Task task) {
@@ -83,6 +157,8 @@ public class TaskDetailActivity extends AppCompatActivity {
         statusText.setText("Status: " + task.getStatus());
         senderText.setText("From: " + task.getOrigSender() + " (" + task.getOrigChatName() + ")");
         dateText.setText("Created: " + formatDate(task.getCreatedAt()));
+
+        btnToggleStatus.setText(task.isPending() ? "Mark Done" : "Reopen");
 
         if (task.getCompletedAt() != null && !task.getCompletedAt().isEmpty()) {
             completedText.setText("Completed: " + formatDate(task.getCompletedAt()));
@@ -144,5 +220,13 @@ public class TaskDetailActivity extends AppCompatActivity {
     public boolean onSupportNavigateUp() {
         finish();
         return true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (listenerRegistration != null) {
+            listenerRegistration.remove();
+        }
     }
 }
