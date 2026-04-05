@@ -167,9 +167,14 @@ public class PillBoxActivity extends AppCompatActivity {
         }).start();
     }
 
+    private static final String[] MODELS = {
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash-lite"
+    };
+
     private String callGeminiApi(String base64Image) throws Exception {
         String apiKey = BuildConfig.GEMINI_API_KEY;
-        String urlStr = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
         String prompt = "You are analyzing a photo of a round pill organizer with 7 compartments arranged in a circle (one for each day of the week). "
                 + "For each compartment, determine if it is EMPTY or FULL (contains pills). "
@@ -198,39 +203,62 @@ public class PillBoxActivity extends AppCompatActivity {
         contents.put(content);
         requestBody.put("contents", contents);
 
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setDoOutput(true);
-        conn.setConnectTimeout(30000);
-        conn.setReadTimeout(60000);
+        byte[] bodyBytes = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+        Exception lastError = null;
 
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(requestBody.toString().getBytes(StandardCharsets.UTF_8));
+        for (String model : MODELS) {
+            String urlStr = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+
+            for (int attempt = 0; attempt < 2; attempt++) {
+                try {
+                    URL url = new URL(urlStr);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(30000);
+                    conn.setReadTimeout(60000);
+
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(bodyBytes);
+                    }
+
+                    int responseCode = conn.getResponseCode();
+                    InputStream is = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    if (responseCode == 503 || responseCode == 429) {
+                        lastError = new Exception(model + " returned " + responseCode);
+                        Thread.sleep(2000);
+                        continue;
+                    }
+
+                    if (responseCode >= 400) {
+                        lastError = new Exception(model + " error " + responseCode + ": " + response);
+                        break; // try next model
+                    }
+
+                    JSONObject json = new JSONObject(response.toString());
+                    return json.getJSONArray("candidates")
+                            .getJSONObject(0)
+                            .getJSONObject("content")
+                            .getJSONArray("parts")
+                            .getJSONObject(0)
+                            .getString("text");
+                } catch (IOException e) {
+                    lastError = e;
+                    Thread.sleep(2000);
+                }
+            }
         }
 
-        int responseCode = conn.getResponseCode();
-        InputStream is = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-        StringBuilder response = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            response.append(line);
-        }
-        reader.close();
-
-        if (responseCode >= 400) {
-            throw new Exception("API error (" + responseCode + "): " + response);
-        }
-
-        JSONObject json = new JSONObject(response.toString());
-        return json.getJSONArray("candidates")
-                .getJSONObject(0)
-                .getJSONObject("content")
-                .getJSONArray("parts")
-                .getJSONObject(0)
-                .getString("text");
+        throw lastError != null ? lastError : new Exception("All models failed");
     }
 
     private void showResults(String result) {
