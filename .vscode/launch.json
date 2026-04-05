@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug tsx",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "tsx",
+      "args": ["src/index.ts"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

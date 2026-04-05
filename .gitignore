@@ -1,0 +1,16 @@
+node_modules/
+dist/
+auth_info/
+config/
+*.js.map
+.DS_Store
+messages.log
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/app/google-services.json
+android/local.properties
+*.iml
+.idea/

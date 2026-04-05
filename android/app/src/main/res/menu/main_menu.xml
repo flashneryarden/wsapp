@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/filter_all"
+        android:title="All Tasks"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/filter_pending"
+        android:title="Pending Only"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/filter_done"
+        android:title="Completed Only"
+        app:showAsAction="never" />
+</menu>
