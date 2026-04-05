@@ -169,7 +169,7 @@ public class PillBoxActivity extends AppCompatActivity {
 
     private String callGeminiApi(String base64Image) throws Exception {
         String apiKey = BuildConfig.GEMINI_API_KEY;
-        String urlStr = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+        String urlStr = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
         String prompt = "You are analyzing a photo of a round pill organizer with 7 compartments arranged in a circle (one for each day of the week). "
                 + "For each compartment, determine if it is EMPTY or FULL (contains pills). "
