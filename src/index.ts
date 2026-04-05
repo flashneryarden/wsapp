@@ -31,6 +31,25 @@ let forwardGroupId: string | null = FORWARD_GROUP_JID;
 const botSentIds = new Set<string>();
 let wsapGroupId: string | null = null;
 
+// App settings (persisted to config/settings.json)
+const SETTINGS_PATH = path.join(process.cwd(), "config", "settings.json");
+
+interface AppSettings {
+  forwardingEnabled: boolean;
+}
+
+function loadSettings(): AppSettings {
+  try {
+    return JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+  } catch {
+    const defaults: AppSettings = { forwardingEnabled: false };
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(defaults, null, 2));
+    return defaults;
+  }
+}
+
+const settings = loadSettings();
+
 // Skipped chat names — messages from these chats skip analysis/forwarding
 const SKIP_LIST_PATH = path.join(process.cwd(), "config", "skip_list.json");
 const skippedNames = new Set<string>(loadSkipList());
@@ -369,8 +388,10 @@ wa.onMessage(async (msg) => {
           ].filter(Boolean).join("\n");
 
           try {
-            await wa.sendMessage(FORWARD_GROUP_JID, forwardText);
-            console.log(`\x1b[90m  │ 📤 Forwarded to ${FORWARD_GROUP_NAME}\x1b[0m`);
+            if (settings.forwardingEnabled) {
+              await wa.sendMessage(FORWARD_GROUP_JID, forwardText);
+              console.log(`\x1b[90m  │ 📤 Forwarded to ${FORWARD_GROUP_NAME}\x1b[0m`);
+            }
           } catch (fwdErr) {
             console.log(`\x1b[90m  │ ⚠ Forward failed: ${(fwdErr as Error).message}\x1b[0m`);
           }
@@ -457,6 +478,8 @@ async function handleCommand(cmd: string, args: string[], raw: string) {
       return cmdUnremind(args);
     case "firebase-upload":
       return cmdFirebaseUpload();
+    case "forward":
+      return cmdForward(args);
     case "quit":
     case "exit":
       console.log("Shutting down...");
@@ -706,6 +729,7 @@ function cmdHelp() {
 
   \x1b[1mFirebase:\x1b[0m
     firebase-upload            Upload all tasks to Firestore
+    forward [on|off]           Toggle message forwarding to group (default: off)
 
     help                 Show this help
     quit / exit          Exit the CLI
@@ -878,6 +902,23 @@ async function cmdFirebaseUpload() {
     console.log(`\x1b[32m✓ Uploaded ${count} tasks to Firestore\x1b[0m`);
   } catch (err) {
     console.log(`\x1b[31m✗ Upload failed: ${(err as Error).message}\x1b[0m`);
+  }
+}
+
+function cmdForward(args: string[]) {
+  const arg = args[0]?.toLowerCase();
+  if (arg === "on") {
+    settings.forwardingEnabled = true;
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    console.log(`\x1b[32m✓ Forwarding enabled — messages will be sent to ${FORWARD_GROUP_NAME}\x1b[0m`);
+  } else if (arg === "off") {
+    settings.forwardingEnabled = false;
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    console.log(`\x1b[32m✓ Forwarding disabled\x1b[0m`);
+  } else {
+    const status = settings.forwardingEnabled ? "\x1b[32mON\x1b[0m" : "\x1b[31mOFF\x1b[0m";
+    console.log(`Forwarding is currently ${status}`);
+    console.log("Usage: forward on|off");
   }
 }
 
