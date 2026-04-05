@@ -172,7 +172,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
-        if (id == R.id.filter_all) {
+        if (id == R.id.pill_box) {
+            startActivity(new Intent(this, PillBoxActivity.class));
+        } else if (id == R.id.filter_all) {
             currentFilter = null;
             setTitle("Tasks — All");
         } else if (id == R.id.filter_pending) {

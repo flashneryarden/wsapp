@@ -3,6 +3,12 @@ plugins {
     id 'com.google.gms.google-services'
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+
 android {
     namespace 'com.wsapp.taskviewer'
     compileSdk 35
@@ -13,6 +19,12 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
+
+        buildConfigField "String", "GEMINI_API_KEY", "\"${localProperties['GEMINI_API_KEY'] ?: ''}\""
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     buildTypes {
