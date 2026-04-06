@@ -21,4 +21,9 @@
         android:id="@+id/filter_done"
         android:title="Completed Only"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/delete_all"
+        android:title="🗑 Delete All Tasks"
+        app:showAsAction="never" />
 </menu>

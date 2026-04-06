@@ -10,6 +10,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
+
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -183,6 +185,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         } else if (id == R.id.filter_done) {
             currentFilter = "done";
             setTitle("Tasks — Done");
+        } else if (id == R.id.delete_all) {
+            confirmDeleteAll();
+            return true;
         } else {
             return super.onOptionsItemSelected(item);
         }
@@ -195,6 +200,33 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         Intent intent = new Intent(this, TaskDetailActivity.class);
         intent.putExtra("task_id", task.getId());
         startActivity(intent);
+    }
+
+    private void confirmDeleteAll() {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete All Tasks")
+                .setMessage("Are you sure you want to delete ALL tasks? This cannot be undone.")
+                .setPositiveButton("Delete All", (dialog, which) -> deleteAllTasks())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void deleteAllTasks() {
+        db.collection("tasks").get().addOnSuccessListener(snapshots -> {
+            if (snapshots.isEmpty()) {
+                Toast.makeText(this, "No tasks to delete", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            com.google.firebase.firestore.WriteBatch batch = db.batch();
+            for (QueryDocumentSnapshot doc : snapshots) {
+                batch.delete(doc.getReference());
+            }
+            batch.commit()
+                    .addOnSuccessListener(v -> Toast.makeText(this,
+                            "Deleted " + snapshots.size() + " tasks", Toast.LENGTH_SHORT).show())
+                    .addOnFailureListener(e -> Toast.makeText(this,
+                            "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        });
     }
 
     @Override
