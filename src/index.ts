@@ -1230,7 +1230,9 @@ wa.connect().then(async (result) => {
 
   // Start reminders and daily digest
   const reminderSend = async (text: string) => {
-    await wa.sendMessage(FORWARD_GROUP_JID, text);
+    if (settings.forwardingEnabled) {
+      await wa.sendMessage(FORWARD_GROUP_JID, text);
+    }
   };
   startReminderLoop(reminderSend);
   startDailyDigest(reminderSend);

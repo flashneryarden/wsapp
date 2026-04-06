@@ -131,7 +131,7 @@ public class PillBoxActivity extends AppCompatActivity {
 
     private String bitmapToBase64(Bitmap bitmap) {
         // Resize if too large
-        int maxSize = 1024;
+        int maxSize = 2048;
         float scale = Math.min((float) maxSize / bitmap.getWidth(), (float) maxSize / bitmap.getHeight());
         if (scale < 1) {
             bitmap = Bitmap.createScaledBitmap(bitmap,
@@ -140,7 +140,7 @@ public class PillBoxActivity extends AppCompatActivity {
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, baos);
         return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
     }
 
@@ -176,12 +176,11 @@ public class PillBoxActivity extends AppCompatActivity {
     private String callGeminiApi(String base64Image) throws Exception {
         String apiKey = BuildConfig.GEMINI_API_KEY;
 
-        String prompt = "You are analyzing a photo of a round pill organizer with 7 compartments arranged in a circle (one for each day of the week). "
-                + "The days are marked with Hebrew letters: א (Sunday), ב (Monday), ג (Tuesday), ד (Wednesday), ה (Thursday), ו (Friday), ש (Shabbat/Saturday). "
-                + "For each compartment, determine if it is EMPTY or FULL (contains pills). "
-                + "List each compartment by its Hebrew letter and day name. "
-                + "At the end, give a summary of how many are empty and how many are full. "
-                + "Format the response clearly with emoji: ✅ for full, ❌ for empty.";
+        String prompt = "This is a round pill organizer with 7 compartments in a circle. "
+                + "Look carefully at each individual compartment. "
+                + "Which ones have pills and which are empty? "
+                + "List each one with ✅ for full or ❌ for empty. "
+                + "End with a count: X full, Y empty.";
 
         JSONObject requestBody = new JSONObject();
         JSONArray contents = new JSONArray();
