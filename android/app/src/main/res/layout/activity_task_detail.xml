@@ -148,14 +148,40 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="16dp" />
 
-        <!-- Message -->
+        <!-- Summary (key details, shown first and prominently) -->
+        <TextView
+            android:id="@+id/detailSummaryLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Summary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#1A237E"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/detailSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/summary_card_bg"
+            android:padding="14dp"
+            android:textSize="19sp"
+            android:textColor="#212121"
+            android:fontFamily="sans-serif-medium"
+            android:lineSpacingExtra="6dp" />
+
+        <!-- Original message (secondary, smaller and in a different font) -->
         <TextView
             android:id="@+id/detailMessageLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Message"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="20dp"
+            android:text="Original Message"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#9E9E9E"
+            android:fontFamily="sans-serif" />
 
         <TextView
             android:id="@+id/detailMessage"
@@ -163,25 +189,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textSize="14sp"
-            android:lineSpacingExtra="4dp" />
-
-        <!-- Summary -->
-        <TextView
-            android:id="@+id/detailSummaryLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Summary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/detailSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textSize="14sp"
-            android:lineSpacingExtra="4dp" />
+            android:textColor="#616161"
+            android:fontFamily="serif"
+            android:lineSpacingExtra="3dp" />
 
         <!-- Action Items -->
         <TextView

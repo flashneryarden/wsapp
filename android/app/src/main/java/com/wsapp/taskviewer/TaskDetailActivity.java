@@ -302,7 +302,16 @@ public class TaskDetailActivity extends AppCompatActivity {
         dueText.setText((due != null && !due.trim().isEmpty()) ? "📅 Due: " + due : "No due date");
 
         messageText.setText(task.getText());
-        summaryText.setText(task.getSummary());
+
+        String summary = task.getSummary();
+        if (summary != null && !summary.trim().isEmpty()) {
+            summaryText.setText(summary);
+            summaryLabel.setVisibility(View.VISIBLE);
+            summaryText.setVisibility(View.VISIBLE);
+        } else {
+            summaryLabel.setVisibility(View.GONE);
+            summaryText.setVisibility(View.GONE);
+        }
 
         actionItemsContainer.removeAllViews();
         if (task.getActionItems() != null && !task.getActionItems().isEmpty()) {
