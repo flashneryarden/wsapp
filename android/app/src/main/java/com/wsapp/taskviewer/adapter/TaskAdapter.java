@@ -63,6 +63,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         private final TextView sender;
         private final TextView date;
         private final TextView actionItemCount;
+        private final TextView criticalBadge;
 
         TaskViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -72,6 +73,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             sender = itemView.findViewById(R.id.sender);
             date = itemView.findViewById(R.id.date);
             actionItemCount = itemView.findViewById(R.id.actionItemCount);
+            criticalBadge = itemView.findViewById(R.id.criticalBadge);
 
             itemView.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
@@ -88,6 +90,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             sender.setText(task.getOrigSender() + " (" + task.getOrigChatName() + ")");
             date.setText(formatDate(task.getCreatedAt()));
 
+            criticalBadge.setVisibility(task.isEffectivelyCritical() ? View.VISIBLE : View.GONE);
             int count = task.getActionItems() != null ? task.getActionItems().size() : 0;
             if (count > 0) {
                 actionItemCount.setVisibility(View.VISIBLE);

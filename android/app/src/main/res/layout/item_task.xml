@@ -34,6 +34,22 @@
                 android:orientation="horizontal">
 
                 <TextView
+                    android:id="@+id/criticalBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="CRITICAL"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    android:background="#D32F2F"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="1dp"
+                    android:paddingBottom="1dp"
+                    android:layout_marginEnd="8dp"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/taskId"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

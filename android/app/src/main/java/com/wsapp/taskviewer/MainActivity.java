@@ -147,6 +147,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             }
 
             List<Task> filtered = filterTasks(allTasks);
+            // Critical tasks first; stable sort preserves the id-desc order within each group.
+            java.util.Collections.sort(filtered,
+                    (a, b) -> Boolean.compare(b.isEffectivelyCritical(), a.isEffectivelyCritical()));
             adapter.setTasks(filtered);
 
             if (filtered.isEmpty()) {

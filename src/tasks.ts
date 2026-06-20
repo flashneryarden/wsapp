@@ -42,6 +42,7 @@ export function addTask(
     status: "pending",
     completedAt: null,
     notes: [],
+    critical: analysis.isCritical,
   };
   tasks.push(task);
   saveTasks();
@@ -113,6 +114,7 @@ export function addManualTask(text: string): Task {
     status: "pending",
     completedAt: null,
     notes: [],
+    critical: false,
   };
   tasks.push(task);
   saveTasks();
@@ -133,7 +135,8 @@ export function formatTaskList(tasks: Task[], title: string): string {
   const lines = [title, ""];
   for (const t of tasks) {
     const icon = statusIcon(t.status);
-    lines.push(`${icon} #${t.id} — ${t.summary}`);
+    const flag = t.critical ? "🔴 " : "";
+    lines.push(`${icon} ${flag}#${t.id} — ${t.summary}`);
     lines.push(`   From: ${t.origSender} (${t.origChatName})`);
     lines.push(`   Created: ${formatDate(t.createdAt)}`);
     if (t.actionItems.length > 0) {

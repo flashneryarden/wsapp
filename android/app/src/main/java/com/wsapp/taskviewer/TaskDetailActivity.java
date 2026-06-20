@@ -247,7 +247,7 @@ public class TaskDetailActivity extends AppCompatActivity {
 
     private void displayTask(Task task) {
         statusIcon.setText(task.isDone() ? "✅" : "⏳");
-        taskTitle.setText("Task #" + task.getId());
+        taskTitle.setText((task.isEffectivelyCritical() ? "🔴 " : "") + "Task #" + task.getId());
         statusText.setText("Status: " + task.getStatus());
         senderText.setText("From: " + task.getOrigSender() + " (" + task.getOrigChatName() + ")");
         dateText.setText("Created: " + formatDate(task.getCreatedAt()));

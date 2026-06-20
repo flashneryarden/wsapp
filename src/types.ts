@@ -39,6 +39,7 @@ export interface Task {
   status: "pending" | "done";
   completedAt: string | null;
   notes: string[];
+  critical: boolean;
 }
 
 export interface Reminder {

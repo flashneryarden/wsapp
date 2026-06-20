@@ -3,10 +3,12 @@ import { CopilotClient, CopilotSession } from "@github/copilot-sdk";
 const SYSTEM_PROMPT = `You are a message analyzer. Given a WhatsApp message, determine:
 1. Does it contain a task or action item someone needs to do?
 2. Does it contain important information (deadlines, decisions, announcements, urgent matters)?
+3. How critical is it? Mark CRITICAL: yes only when the message is urgent, time-sensitive, or high-impact (e.g. emergencies, imminent deadlines, safety issues, money/health matters, "ASAP"/"now"). Otherwise CRITICAL: no.
 
 Respond in this exact format:
 TASK: yes/no
 IMPORTANT: yes/no
+CRITICAL: yes/no
 SUMMARY: <one-line summary of the message>
 ACTION_ITEMS:
 - <action item 1> [due: <date if mentioned>] (if any)
@@ -20,6 +22,7 @@ Be concise. Analyze the message regardless of language.`;
 export interface AnalysisResult {
   hasTask: boolean;
   isImportant: boolean;
+  isCritical: boolean;
   summary: string;
   actionItems: string[];
   raw: string;
@@ -77,6 +80,8 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
 
   const hasTask = /TASK:\s*yes/i.test(raw);
   const isImportant = /IMPORTANT:\s*yes/i.test(raw);
+  // Fall back to importance when the model omits the CRITICAL line.
+  const isCritical = /CRITICAL:/i.test(raw) ? /CRITICAL:\s*yes/i.test(raw) : isImportant;
 
   const summaryMatch = raw.match(/SUMMARY:\s*(.+)/i);
   const summary = summaryMatch?.[1]?.trim() ?? "";
@@ -90,7 +95,7 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
     }
   }
 
-  return { hasTask, isImportant, summary, actionItems, raw };
+  return { hasTask, isImportant, isCritical, summary, actionItems, raw };
 }
 
 export async function resetChatSession(): Promise<void> {
