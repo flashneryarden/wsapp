@@ -19,6 +19,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
@@ -26,6 +27,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
 import com.wsapp.taskviewer.adapter.TaskAdapter;
 import com.wsapp.taskviewer.model.Task;
+import com.wsapp.taskviewer.util.DueDateFormatter;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -146,6 +148,8 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                 allTasks.add(task);
             }
 
+            clearPastDueDates(allTasks);
+
             List<Task> filtered = filterTasks(allTasks);
             // Critical tasks first; stable sort preserves the id-desc order within each group.
             java.util.Collections.sort(filtered,
@@ -163,8 +167,23 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         });
     }
 
-    private List<Task> filterTasks(List<Task> tasks) {
-        if (currentFilter == null) return tasks;
+    /**
+     * Removes the stored dueDate field for any task whose due date has already
+     * passed, so the database never retains stale past deadlines. Acts only on
+     * the structured field (not the action-item fallback) and mutates the local
+     * objects so the change is reflected immediately.
+     */
+    private void clearPastDueDates(List<Task> tasks) {
+        for (Task task : tasks) {
+            if (DueDateFormatter.isPast(task.getDueDate())) {
+                task.setDueDate(null);
+                db.collection("tasks").document(String.valueOf(task.getId()))
+                        .update("dueDate", FieldValue.delete());
+            }
+        }
+    }
+
+    private List<Task> filterTasks(List<Task> tasks) {        if (currentFilter == null) return tasks;
         List<Task> result = new ArrayList<>();
         for (Task t : tasks) {
             if (currentFilter.equals(t.getStatus())) {

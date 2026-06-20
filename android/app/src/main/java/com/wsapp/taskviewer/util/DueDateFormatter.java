@@ -36,9 +36,14 @@ public final class DueDateFormatter {
         return relative(date, LocalDate.now());
     }
 
+    /** True when the value resolves to a concrete date strictly before today. */
+    public static boolean isPast(String raw) {
+        LocalDate date = parseDate(raw);
+        return date != null && date.isBefore(LocalDate.now());
+    }
+
     /** Extract a concrete calendar date from an arbitrary string, or null. */
-    public static LocalDate parseDate(String raw) {
-        if (raw == null) return null;
+    public static LocalDate parseDate(String raw) {        if (raw == null) return null;
         Matcher m = ISO.matcher(raw);
         if (m.find()) {
             LocalDate d = safeDate(num(m, 1), num(m, 2), num(m, 3));
