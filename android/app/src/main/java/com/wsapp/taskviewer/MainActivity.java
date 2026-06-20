@@ -18,17 +18,23 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.WriteBatch;
 import com.wsapp.taskviewer.adapter.TaskAdapter;
 import com.wsapp.taskviewer.model.Task;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener {
 
@@ -185,6 +191,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         } else if (id == R.id.filter_done) {
             currentFilter = "done";
             setTitle("Tasks — Done");
+        } else if (id == R.id.delete_old) {
+            showDeleteOldTasksDialog();
+            return true;
         } else if (id == R.id.delete_all) {
             confirmDeleteAll();
             return true;
@@ -227,6 +236,85 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
                     .addOnFailureListener(e -> Toast.makeText(this,
                             "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         });
+    }
+
+    private static final int[] AGE_PRESETS = {30, 60, 90};
+
+    private void showDeleteOldTasksDialog() {
+        String[] labels = new String[AGE_PRESETS.length];
+        for (int i = 0; i < AGE_PRESETS.length; i++) {
+            labels[i] = "Older than " + AGE_PRESETS[i] + " days";
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Old Tasks")
+                .setItems(labels, (dialog, which) -> findAndConfirmDeleteOld(AGE_PRESETS[which]))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void findAndConfirmDeleteOld(int days) {
+        long cutoff = System.currentTimeMillis() - (long) days * 24L * 60L * 60L * 1000L;
+        db.collection("tasks").get().addOnSuccessListener(snapshots -> {
+            List<DocumentReference> toDelete = new ArrayList<>();
+            for (QueryDocumentSnapshot doc : snapshots) {
+                Date created = parseCreatedAt(doc.getString("createdAt"));
+                if (created != null && created.getTime() < cutoff) {
+                    toDelete.add(doc.getReference());
+                }
+            }
+            if (toDelete.isEmpty()) {
+                Toast.makeText(this, "No tasks older than " + days + " days", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            new AlertDialog.Builder(this)
+                    .setTitle("Delete Old Tasks")
+                    .setMessage("Delete " + toDelete.size() + " task(s) older than " + days
+                            + " days? This cannot be undone.")
+                    .setPositiveButton("Delete", (d, w) -> deleteOldTasks(toDelete))
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        }).addOnFailureListener(e ->
+                Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    private void deleteOldTasks(List<DocumentReference> refs) {
+        final int total = refs.size();
+        final int chunkSize = 500; // Firestore batch limit
+        final int[] remainingBatches = {(total + chunkSize - 1) / chunkSize};
+        final boolean[] failed = {false};
+
+        for (int start = 0; start < total; start += chunkSize) {
+            int end = Math.min(start + chunkSize, total);
+            WriteBatch batch = db.batch();
+            for (int i = start; i < end; i++) {
+                batch.delete(refs.get(i));
+            }
+            batch.commit()
+                    .addOnSuccessListener(v -> {
+                        remainingBatches[0]--;
+                        if (remainingBatches[0] == 0 && !failed[0]) {
+                            Toast.makeText(this, "Deleted " + total + " task(s)", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        if (!failed[0]) {
+                            failed[0] = true;
+                            Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        }
+    }
+
+    private Date parseCreatedAt(String value) {
+        if (value == null || value.isEmpty()) return null;
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+        fmt.setLenient(true);
+        try {
+            return fmt.parse(value);
+        } catch (java.text.ParseException e) {
+            return null;
+        }
     }
 
     @Override

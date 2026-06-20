@@ -23,6 +23,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/delete_old"
+        android:title="🗑 Delete Old Tasks"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/delete_all"
         android:title="🗑 Delete All Tasks"
         app:showAsAction="never" />
