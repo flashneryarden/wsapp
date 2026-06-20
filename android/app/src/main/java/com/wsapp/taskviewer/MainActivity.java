@@ -168,17 +168,29 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     }
 
     /**
-     * Removes the stored dueDate field for any task whose due date has already
-     * passed, so the database never retains stale past deadlines. Acts only on
-     * the structured field (not the action-item fallback) and mutates the local
-     * objects so the change is reflected immediately.
+     * Removes past due dates from the database for any loaded task: deletes the
+     * structured dueDate field when it has passed, and strips any "[due: ...]"
+     * marker with a past date out of the action items (the form older/deployed
+     * backends use). Local objects are mutated so the change shows immediately.
      */
     private void clearPastDueDates(List<Task> tasks) {
         for (Task task : tasks) {
+            DocumentReference ref = null;
+
             if (DueDateFormatter.isPast(task.getDueDate())) {
                 task.setDueDate(null);
-                db.collection("tasks").document(String.valueOf(task.getId()))
-                        .update("dueDate", FieldValue.delete());
+                ref = db.collection("tasks").document(String.valueOf(task.getId()));
+                ref.update("dueDate", FieldValue.delete());
+            }
+
+            List<String> cleaned =
+                    DueDateFormatter.stripPastDueMarkers(task.getActionItems(), task.getCreatedAt());
+            if (cleaned != null) {
+                task.setActionItems(cleaned);
+                if (ref == null) {
+                    ref = db.collection("tasks").document(String.valueOf(task.getId()));
+                }
+                ref.update("actionItems", cleaned);
             }
         }
     }

@@ -78,28 +78,60 @@ async function sendWithRetry(prompt: string): Promise<string> {
   }
 }
 
+/** True when the string contains a concrete calendar date strictly before today. */
+function isPastDateString(s: string): boolean {
+  let y: number, m: number, d: number;
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    y = +iso[1]; m = +iso[2]; d = +iso[3];
+  } else {
+    const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (!dmy) return false;
+    d = +dmy[1]; m = +dmy[2]; y = +dmy[3];
+  }
+  const due = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return due.getTime() < today.getTime();
+}
+
 /**
  * Normalize a model-provided due date to a strict ISO calendar date
  * (YYYY-MM-DD) so the stored field is always numeric. Accepts ISO or
- * DD/MM/YYYY input; rejects relative/free text (returns null) so the
- * dueDate field never holds ambiguous strings like "tomorrow".
+ * DD/MM/YYYY input; rejects relative/free text and dates already in the
+ * past (returns null) so the dueDate field never holds ambiguous strings
+ * like "tomorrow" or a deadline that has already elapsed.
  */
 function normalizeDueDate(raw: string | undefined): string | null {
   if (!raw) return null;
   const s = raw.trim();
   if (s === "" || /^none$/i.test(s)) return null;
 
-  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-
-  const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (dmy) {
-    const d = dmy[1].padStart(2, "0");
-    const m = dmy[2].padStart(2, "0");
-    return `${dmy[3]}-${m}-${d}`;
+  let iso: string | null = null;
+  const isoMatch = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    iso = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  } else {
+    const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (dmy) {
+      const d = dmy[1].padStart(2, "0");
+      const m = dmy[2].padStart(2, "0");
+      iso = `${dmy[3]}-${m}-${d}`;
+    }
   }
 
-  return null;
+  if (!iso || isPastDateString(iso)) return null;
+  return iso;
+}
+
+/** Remove "[due: ...]" markers with an already-passed date from an action item. */
+function stripPastDueMarker(item: string): string {
+  return item
+    .replace(/\s*\[\s*due:\s*([^\]]*)\]/gi, (full, inner) =>
+      isPastDateString(inner) ? "" : full,
+    )
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 export async function analyzeMessage(text: string): Promise<AnalysisResult> {
@@ -121,7 +153,8 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
   for (const line of actionSection.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.startsWith("- ") && !/^-\s*none$/i.test(trimmed)) {
-      actionItems.push(trimmed.slice(2));
+      const cleaned = stripPastDueMarker(trimmed.slice(2));
+      if (cleaned) actionItems.push(cleaned);
     }
   }
 
