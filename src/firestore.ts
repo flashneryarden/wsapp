@@ -6,6 +6,7 @@ import type { Task } from "./types.js";
 
 const SERVICE_ACCOUNT_PATH = path.join(process.cwd(), "config", "firebase-service-account.json");
 const COLLECTION = "tasks";
+const SKIPPED_GROUPS_COLLECTION = "skippedGroups";
 
 let db: Firestore | null = null;
 
@@ -56,4 +57,24 @@ export async function uploadAllTasks(tasks: Task[]): Promise<number> {
   }
   await batch.commit();
   return tasks.length;
+}
+
+/**
+ * Listen for changes to the `skippedGroups` collection (populated by the Android
+ * app). Invokes `onChange` with the current list of skipped group names whenever
+ * the collection changes (including once on startup). One-way Firestore → backend.
+ */
+export function listenSkippedGroups(onChange: (names: string[]) => void): void {
+  if (!db) return;
+  db.collection(SKIPPED_GROUPS_COLLECTION).onSnapshot(
+    (snap) => {
+      const names = snap.docs
+        .map((d) => (d.data() as { name?: string }).name)
+        .filter((n): n is string => typeof n === "string" && n.length > 0);
+      onChange(names);
+    },
+    (err) => {
+      console.log(`\x1b[33m⚠ skippedGroups listener error: ${err.message}\x1b[0m`);
+    },
+  );
 }

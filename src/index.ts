@@ -5,7 +5,7 @@ import { WhatsAppClient } from "./whatsapp.js";
 import { analyzeMessage, chatWithCopilot, resetChatSession, isAIActive, stopAI } from "./ai.js";
 import { loadTasks, addTask, addManualTask, getTask, listTasks, listTodayTasks, completeTask, deleteTasks, addNote, formatTaskList, formatTaskDetail } from "./tasks.js";
 import { loadReminders, addReminder, deleteReminder, listPendingReminders, formatReminderList, parseTimeSpec, parseDueDate, extractDueFromActionItem, startReminderLoop, startDailyDigest, stopReminders, scheduleNewReminder } from "./reminders.js";
-import { initFirestore, uploadAllTasks } from "./firestore.js";
+import { initFirestore, uploadAllTasks, listenSkippedGroups } from "./firestore.js";
 
 const startTime = Date.now();
 const MESSAGE_LOG_PATH = path.join(process.cwd(), "messages.log");
@@ -1207,6 +1207,21 @@ const headless = process.argv.includes("--headless");
 loadTasks();
 loadReminders();
 initFirestore();
+
+// Merge app-driven skipped groups (Firestore `skippedGroups`) into the local skip list.
+listenSkippedGroups((names) => {
+  let added = 0;
+  for (const name of names) {
+    if (!skippedNames.has(name)) {
+      skippedNames.add(name);
+      added++;
+    }
+  }
+  if (added > 0) {
+    saveSkipList();
+    console.log(`\x1b[36m⏭️  Synced ${added} skipped group(s) from app\x1b[0m`);
+  }
+});
 
 console.log(`\x1b[1mwsapp — WhatsApp CLI${headless ? " (headless)" : ""}\x1b[0m`);
 console.log(`Connecting to WhatsApp...`);

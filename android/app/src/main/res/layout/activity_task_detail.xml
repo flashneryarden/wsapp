@@ -75,6 +75,16 @@
                 xmlns:app="http://schemas.android.com/apk/res-auto" />
         </LinearLayout>
 
+        <!-- Skip group -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSkipGroup"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Skip Group"
+            android:textSize="13sp" />
+
         <!-- Meta info -->
         <TextView
             android:id="@+id/detailStatus"

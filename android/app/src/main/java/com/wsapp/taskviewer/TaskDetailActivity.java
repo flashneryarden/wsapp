@@ -14,12 +14,16 @@ import com.google.android.material.button.MaterialButton;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.WriteBatch;
 import com.wsapp.taskviewer.model.Task;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
 
 public class TaskDetailActivity extends AppCompatActivity {
@@ -29,7 +33,7 @@ public class TaskDetailActivity extends AppCompatActivity {
     private LinearLayout actionItemsContainer, notesContainer;
     private TextView actionItemsLabel, notesLabel;
     private TextView completedText;
-    private MaterialButton btnToggleStatus, btnAddNote, btnDelete;
+    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup;
 
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
@@ -62,6 +66,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnToggleStatus = findViewById(R.id.btnToggleStatus);
         btnAddNote = findViewById(R.id.btnAddNote);
         btnDelete = findViewById(R.id.btnDelete);
+        btnSkipGroup = findViewById(R.id.btnSkipGroup);
 
         db = FirebaseFirestore.getInstance();
 
@@ -76,6 +81,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnToggleStatus.setOnClickListener(v -> toggleStatus());
         btnAddNote.setOnClickListener(v -> showAddNoteDialog());
         btnDelete.setOnClickListener(v -> confirmDelete());
+        btnSkipGroup.setOnClickListener(v -> showSkipGroupDialog());
 
         loadTask(taskId);
     }
@@ -149,6 +155,94 @@ public class TaskDetailActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void showSkipGroupDialog() {
+        if (currentTask == null) return;
+        final String group = currentTask.getOrigChatName();
+        if (group == null || group.isEmpty()) {
+            Toast.makeText(this, "This task has no group to skip", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Skip Group")
+                .setMessage("Skip \"" + group + "\"?\n\n"
+                        + "Future messages from this group will be filtered out and won't create new tasks.\n\n"
+                        + "• Skip & Delete: also delete existing tasks from this group.\n"
+                        + "• Skip Only: keep existing tasks.")
+                .setPositiveButton("Skip & Delete", (dialog, which) -> skipGroup(group, true))
+                .setNeutralButton("Skip Only", (dialog, which) -> skipGroup(group, false))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void skipGroup(String group, boolean deleteExisting) {
+        db.collection("skippedGroups")
+                .whereEqualTo("name", group)
+                .limit(1)
+                .get()
+                .addOnSuccessListener(snap -> {
+                    if (snap.isEmpty()) {
+                        Map<String, Object> doc = new HashMap<>();
+                        doc.put("name", group);
+                        SimpleDateFormat fmt =
+                                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+                        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+                        doc.put("skippedAt", fmt.format(new Date()));
+                        db.collection("skippedGroups").add(doc)
+                                .addOnSuccessListener(ref -> afterSkip(group, deleteExisting))
+                                .addOnFailureListener(e -> Toast.makeText(this,
+                                        "Failed to skip group: " + e.getMessage(),
+                                        Toast.LENGTH_SHORT).show());
+                    } else {
+                        afterSkip(group, deleteExisting);
+                    }
+                })
+                .addOnFailureListener(e -> Toast.makeText(this,
+                        "Failed to skip group: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    private void afterSkip(String group, boolean deleteExisting) {
+        if (deleteExisting) {
+            deleteTasksForGroup(group);
+        } else {
+            Toast.makeText(this, "Group skipped: " + group, Toast.LENGTH_SHORT).show();
+            finish();
+        }
+    }
+
+    private void deleteTasksForGroup(String group) {
+        db.collection("tasks")
+                .whereEqualTo("origChatName", group)
+                .get()
+                .addOnSuccessListener(snap -> {
+                    if (snap.isEmpty()) {
+                        Toast.makeText(this, "Group skipped; no existing tasks to delete",
+                                Toast.LENGTH_SHORT).show();
+                        finish();
+                        return;
+                    }
+                    WriteBatch batch = db.batch();
+                    int count = 0;
+                    for (QueryDocumentSnapshot doc : snap) {
+                        batch.delete(doc.getReference());
+                        count++;
+                    }
+                    final int deleted = count;
+                    batch.commit()
+                            .addOnSuccessListener(v -> {
+                                Toast.makeText(this,
+                                        "Group skipped; deleted " + deleted + " task(s)",
+                                        Toast.LENGTH_SHORT).show();
+                                finish();
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this,
+                                    "Skipped, but delete failed: " + e.getMessage(),
+                                    Toast.LENGTH_SHORT).show());
+                })
+                .addOnFailureListener(e -> Toast.makeText(this,
+                        "Skipped, but delete failed: " + e.getMessage(),
+                        Toast.LENGTH_SHORT).show());
     }
 
     private void displayTask(Task task) {
