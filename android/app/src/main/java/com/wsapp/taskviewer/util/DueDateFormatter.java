@@ -22,7 +22,7 @@ public final class DueDateFormatter {
     private DueDateFormatter() {}
 
     private static final Pattern ISO = Pattern.compile("(\\d{4})-(\\d{2})-(\\d{2})");
-    private static final Pattern DMY = Pattern.compile("(\\d{1,2})/(\\d{1,2})/(\\d{4})");
+    private static final Pattern DMY = Pattern.compile("(\\d{1,2})[./](\\d{1,2})[./](\\d{4})");
     private static final Pattern DUE_MARKER =
             Pattern.compile("\\s*\\[\\s*due:\\s*([^\\]]*)\\]", Pattern.CASE_INSENSITIVE);
     private static final DateTimeFormatter OUT = DateTimeFormatter.ofPattern("dd/MM/yyyy");

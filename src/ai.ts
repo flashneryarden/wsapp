@@ -85,7 +85,7 @@ function isPastDateString(s: string): boolean {
   if (iso) {
     y = +iso[1]; m = +iso[2]; d = +iso[3];
   } else {
-    const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const dmy = s.match(/(\d{1,2})[./](\d{1,2})[./](\d{4})/);
     if (!dmy) return false;
     d = +dmy[1]; m = +dmy[2]; y = +dmy[3];
   }
@@ -112,7 +112,7 @@ function normalizeDueDate(raw: string | undefined): string | null {
   if (isoMatch) {
     iso = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
   } else {
-    const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const dmy = s.match(/(\d{1,2})[./](\d{1,2})[./](\d{4})/);
     if (dmy) {
       const d = dmy[1].padStart(2, "0");
       const m = dmy[2].padStart(2, "0");
