@@ -18,6 +18,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
 import com.wsapp.taskviewer.model.Task;
+import com.wsapp.taskviewer.util.DueDateFormatter;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -297,7 +298,7 @@ public class TaskDetailActivity extends AppCompatActivity {
             completedText.setVisibility(View.GONE);
         }
 
-        String due = task.getEffectiveDueDate();
+        String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt());
         dueText.setText((due != null && !due.trim().isEmpty()) ? "📅 Due: " + due : "No due date");
 
         messageText.setText(task.getText());

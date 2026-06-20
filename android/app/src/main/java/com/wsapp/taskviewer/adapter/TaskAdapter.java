@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.wsapp.taskviewer.R;
 import com.wsapp.taskviewer.model.Task;
+import com.wsapp.taskviewer.util.DueDateFormatter;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -105,7 +106,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
             criticalBadge.setVisibility(task.isEffectivelyCritical() ? View.VISIBLE : View.GONE);
 
-            String due = task.getEffectiveDueDate();
+            String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt());
             if (due != null && !due.trim().isEmpty()) {
                 dueText.setVisibility(View.VISIBLE);
                 dueText.setText("📅 Due: " + due);

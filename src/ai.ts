@@ -78,6 +78,30 @@ async function sendWithRetry(prompt: string): Promise<string> {
   }
 }
 
+/**
+ * Normalize a model-provided due date to a strict ISO calendar date
+ * (YYYY-MM-DD) so the stored field is always numeric. Accepts ISO or
+ * DD/MM/YYYY input; rejects relative/free text (returns null) so the
+ * dueDate field never holds ambiguous strings like "tomorrow".
+ */
+function normalizeDueDate(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  if (s === "" || /^none$/i.test(s)) return null;
+
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) {
+    const d = dmy[1].padStart(2, "0");
+    const m = dmy[2].padStart(2, "0");
+    return `${dmy[3]}-${m}-${d}`;
+  }
+
+  return null;
+}
+
 export async function analyzeMessage(text: string): Promise<AnalysisResult> {
   const raw = await sendWithRetry(`Message to analyze:\n"${text}"`);
 
@@ -90,8 +114,7 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
   const summary = summaryMatch?.[1]?.trim() ?? "";
 
   const dueMatch = raw.match(/DUE:\s*(.+)/i);
-  const dueRaw = dueMatch?.[1]?.trim() ?? "";
-  const dueDate = dueRaw && !/^none$/i.test(dueRaw) ? dueRaw : null;
+  const dueDate = normalizeDueDate(dueMatch?.[1]?.trim());
 
   const actionItems: string[] = [];
   const actionSection = raw.split(/ACTION_ITEMS:/i)[1] ?? "";
