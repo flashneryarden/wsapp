@@ -9,6 +9,7 @@ Respond in this exact format:
 TASK: yes/no
 IMPORTANT: yes/no
 CRITICAL: yes/no
+DUE: <due date in YYYY-MM-DD if a deadline/date is mentioned, otherwise none>
 SUMMARY: <one-line summary of the message>
 ACTION_ITEMS:
 - <action item 1> [due: <date if mentioned>] (if any)
@@ -16,6 +17,7 @@ ACTION_ITEMS:
 
 If there are no action items, write "none" after ACTION_ITEMS.
 If an action item has a due date or deadline mentioned in the message, include it in [due: ...] format.
+For the DUE field, resolve relative dates (e.g. "tomorrow", "מחר") to an absolute YYYY-MM-DD date when possible; if no date is mentioned, write "none".
 IMPORTANT: The SUMMARY and ACTION_ITEMS must be written in the same language as the input message.
 Be concise. Analyze the message regardless of language.`;
 
@@ -23,6 +25,7 @@ export interface AnalysisResult {
   hasTask: boolean;
   isImportant: boolean;
   isCritical: boolean;
+  dueDate: string | null;
   summary: string;
   actionItems: string[];
   raw: string;
@@ -86,6 +89,10 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
   const summaryMatch = raw.match(/SUMMARY:\s*(.+)/i);
   const summary = summaryMatch?.[1]?.trim() ?? "";
 
+  const dueMatch = raw.match(/DUE:\s*(.+)/i);
+  const dueRaw = dueMatch?.[1]?.trim() ?? "";
+  const dueDate = dueRaw && !/^none$/i.test(dueRaw) ? dueRaw : null;
+
   const actionItems: string[] = [];
   const actionSection = raw.split(/ACTION_ITEMS:/i)[1] ?? "";
   for (const line of actionSection.split("\n")) {
@@ -95,7 +102,7 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
     }
   }
 
-  return { hasTask, isImportant, isCritical, summary, actionItems, raw };
+  return { hasTask, isImportant, isCritical, dueDate, summary, actionItems, raw };
 }
 
 export async function resetChatSession(): Promise<void> {

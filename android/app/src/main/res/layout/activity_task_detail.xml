@@ -115,6 +115,31 @@
             android:textSize="14sp"
             android:visibility="gone" />
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:id="@+id/detailDue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E65100" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSetDueDate"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Set Due Date"
+                android:textSize="13sp" />
+        </LinearLayout>
+
         <!-- Divider -->
         <View
             android:layout_width="match_parent"

@@ -40,6 +40,7 @@ export interface Task {
   completedAt: string | null;
   notes: string[];
   critical: boolean;
+  dueDate: string | null;
 }
 
 export interface Reminder {

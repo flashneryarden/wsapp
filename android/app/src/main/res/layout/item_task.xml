@@ -92,6 +92,16 @@
                 android:layout_marginTop="2dp"
                 android:visibility="gone" />
 
+            <TextView
+                android:id="@+id/dueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#E65100"
+                android:layout_marginTop="2dp"
+                android:visibility="gone" />
+
         </LinearLayout>
 
         <ImageButton

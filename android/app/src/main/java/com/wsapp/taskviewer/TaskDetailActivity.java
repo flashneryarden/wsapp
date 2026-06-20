@@ -1,5 +1,6 @@
 package com.wsapp.taskviewer;
 
+import android.app.DatePickerDialog;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
@@ -20,6 +21,7 @@ import com.wsapp.taskviewer.model.Task;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
@@ -33,7 +35,8 @@ public class TaskDetailActivity extends AppCompatActivity {
     private LinearLayout actionItemsContainer, notesContainer;
     private TextView actionItemsLabel, notesLabel;
     private TextView completedText;
-    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup;
+    private TextView dueText;
+    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup, btnSetDueDate;
 
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
@@ -55,6 +58,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         senderText = findViewById(R.id.detailSender);
         dateText = findViewById(R.id.detailDate);
         completedText = findViewById(R.id.detailCompleted);
+        dueText = findViewById(R.id.detailDue);
         messageLabel = findViewById(R.id.detailMessageLabel);
         messageText = findViewById(R.id.detailMessage);
         summaryLabel = findViewById(R.id.detailSummaryLabel);
@@ -67,6 +71,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnAddNote = findViewById(R.id.btnAddNote);
         btnDelete = findViewById(R.id.btnDelete);
         btnSkipGroup = findViewById(R.id.btnSkipGroup);
+        btnSetDueDate = findViewById(R.id.btnSetDueDate);
 
         db = FirebaseFirestore.getInstance();
 
@@ -82,6 +87,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnAddNote.setOnClickListener(v -> showAddNoteDialog());
         btnDelete.setOnClickListener(v -> confirmDelete());
         btnSkipGroup.setOnClickListener(v -> showSkipGroupDialog());
+        btnSetDueDate.setOnClickListener(v -> showDueDatePicker());
 
         loadTask(taskId);
     }
@@ -245,6 +251,36 @@ public class TaskDetailActivity extends AppCompatActivity {
                         Toast.LENGTH_SHORT).show());
     }
 
+    private void showDueDatePicker() {
+        if (currentTask == null) return;
+        Calendar cal = Calendar.getInstance();
+        String existing = currentTask.getDueDate();
+        if (existing != null && !existing.trim().isEmpty()) {
+            try {
+                SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                Date d = f.parse(existing.trim());
+                if (d != null) cal.setTime(d);
+            } catch (ParseException ignored) {
+            }
+        }
+        DatePickerDialog dlg = new DatePickerDialog(this, (view, year, month, day) -> {
+            String value = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day);
+            saveDueDate(value);
+        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH));
+        dlg.setButton(DatePickerDialog.BUTTON_NEUTRAL, "Clear", (d, w) -> saveDueDate(null));
+        dlg.show();
+    }
+
+    private void saveDueDate(String value) {
+        db.collection("tasks").document(String.valueOf(taskId))
+                .update("dueDate", value)
+                .addOnSuccessListener(v -> Toast.makeText(this,
+                        value != null ? "Due date set: " + value : "Due date cleared",
+                        Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e -> Toast.makeText(this,
+                        "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
     private void displayTask(Task task) {
         statusIcon.setText(task.isDone() ? "✅" : "⏳");
         taskTitle.setText((task.isEffectivelyCritical() ? "🔴 " : "") + "Task #" + task.getId());
@@ -260,6 +296,9 @@ public class TaskDetailActivity extends AppCompatActivity {
         } else {
             completedText.setVisibility(View.GONE);
         }
+
+        String due = task.getDueDate();
+        dueText.setText((due != null && !due.trim().isEmpty()) ? "📅 Due: " + due : "No due date");
 
         messageText.setText(task.getText());
         summaryText.setText(task.getSummary());

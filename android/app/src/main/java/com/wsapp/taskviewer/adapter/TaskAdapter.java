@@ -66,6 +66,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         private final TextView date;
         private final TextView actionItemCount;
         private final TextView criticalBadge;
+        private final TextView dueText;
         private final ImageButton btnDeleteTask;
 
         TaskViewHolder(@NonNull View itemView) {
@@ -77,6 +78,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             date = itemView.findViewById(R.id.date);
             actionItemCount = itemView.findViewById(R.id.actionItemCount);
             criticalBadge = itemView.findViewById(R.id.criticalBadge);
+            dueText = itemView.findViewById(R.id.dueText);
             btnDeleteTask = itemView.findViewById(R.id.btnDeleteTask);
 
             itemView.setOnClickListener(v -> {
@@ -102,6 +104,14 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             date.setText(formatDate(task.getCreatedAt()));
 
             criticalBadge.setVisibility(task.isEffectivelyCritical() ? View.VISIBLE : View.GONE);
+
+            String due = task.getDueDate();
+            if (due != null && !due.trim().isEmpty()) {
+                dueText.setVisibility(View.VISIBLE);
+                dueText.setText("📅 Due: " + due);
+            } else {
+                dueText.setVisibility(View.GONE);
+            }
             int count = task.getActionItems() != null ? task.getActionItems().size() : 0;
             if (count > 0) {
                 actionItemCount.setVisibility(View.VISIBLE);

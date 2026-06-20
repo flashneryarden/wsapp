@@ -43,6 +43,7 @@ export function addTask(
     completedAt: null,
     notes: [],
     critical: analysis.isCritical,
+    dueDate: analysis.dueDate,
   };
   tasks.push(task);
   saveTasks();
@@ -115,6 +116,7 @@ export function addManualTask(text: string): Task {
     completedAt: null,
     notes: [],
     critical: false,
+    dueDate: null,
   };
   tasks.push(task);
   saveTasks();
@@ -157,6 +159,7 @@ export function formatTaskDetail(task: Task): string {
     `From: ${task.origSender} (${task.origChatName})`,
     `Created: ${formatDate(task.createdAt)}`,
     task.completedAt ? `Completed: ${formatDate(task.completedAt)}` : "",
+    task.dueDate ? `Due: ${task.dueDate}` : "",
     ``,
     `*Message:* ${task.text}`,
     `*Summary:* ${task.summary}`,

@@ -18,6 +18,7 @@ public class Task {
     private String completedAt;
     private List<String> notes;
     private Boolean critical;
+    private String dueDate;
 
     public Task() {
         actionItems = new ArrayList<>();
@@ -57,6 +58,9 @@ public class Task {
     // Stored criticality flag from the backend AI (may be null for older tasks).
     public Boolean getCritical() { return critical; }
     public void setCritical(Boolean critical) { this.critical = critical; }
+
+    public String getDueDate() { return dueDate; }
+    public void setDueDate(String dueDate) { this.dueDate = dueDate; }
 
     /**
      * Effective criticality used for sorting and display. Uses the stored flag
