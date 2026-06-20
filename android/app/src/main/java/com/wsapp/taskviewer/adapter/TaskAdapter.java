@@ -3,6 +3,7 @@ package com.wsapp.taskviewer.adapter;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -23,6 +24,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
     public interface OnTaskClickListener {
         void onTaskClick(Task task);
+        void onTaskDelete(Task task);
     }
 
     private List<Task> tasks = new ArrayList<>();
@@ -64,6 +66,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         private final TextView date;
         private final TextView actionItemCount;
         private final TextView criticalBadge;
+        private final ImageButton btnDeleteTask;
 
         TaskViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -74,11 +77,19 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             date = itemView.findViewById(R.id.date);
             actionItemCount = itemView.findViewById(R.id.actionItemCount);
             criticalBadge = itemView.findViewById(R.id.criticalBadge);
+            btnDeleteTask = itemView.findViewById(R.id.btnDeleteTask);
 
             itemView.setOnClickListener(v -> {
                 int pos = getAdapterPosition();
                 if (pos != RecyclerView.NO_POSITION && listener != null) {
                     listener.onTaskClick(tasks.get(pos));
+                }
+            });
+
+            btnDeleteTask.setOnClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION && listener != null) {
+                    listener.onTaskDelete(tasks.get(pos));
                 }
             });
         }

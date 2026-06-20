@@ -214,6 +214,22 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         startActivity(intent);
     }
 
+    @Override
+    public void onTaskDelete(Task task) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Task")
+                .setMessage("Delete task #" + task.getId() + "?\n\n" + task.getSummary())
+                .setPositiveButton("Delete", (dialog, which) ->
+                        db.collection("tasks").document(String.valueOf(task.getId()))
+                                .delete()
+                                .addOnSuccessListener(v -> Toast.makeText(this,
+                                        "Task #" + task.getId() + " deleted", Toast.LENGTH_SHORT).show())
+                                .addOnFailureListener(e -> Toast.makeText(this,
+                                        "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     private void confirmDeleteAll() {
         new AlertDialog.Builder(this)
                 .setTitle("Delete All Tasks")
