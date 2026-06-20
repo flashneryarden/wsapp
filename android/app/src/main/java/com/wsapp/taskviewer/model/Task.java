@@ -62,6 +62,30 @@ public class Task {
     public String getDueDate() { return dueDate; }
     public void setDueDate(String dueDate) { this.dueDate = dueDate; }
 
+    private static final java.util.regex.Pattern DUE_PATTERN =
+            java.util.regex.Pattern.compile("due:\\s*([^\\]\\n]+)", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Due date for display. Uses the structured dueDate field when set; otherwise
+     * falls back to a "[due: ...]" hint embedded in an action item (as produced by
+     * older backend versions), so existing tasks still show a due date.
+     */
+    public String getEffectiveDueDate() {
+        if (dueDate != null && !dueDate.trim().isEmpty()) return dueDate;
+        if (actionItems != null) {
+            for (String item : actionItems) {
+                if (item == null) continue;
+                java.util.regex.Matcher m = DUE_PATTERN.matcher(item);
+                if (m.find()) {
+                    String due = m.group(1).trim();
+                    if (due.endsWith("]")) due = due.substring(0, due.length() - 1).trim();
+                    if (!due.isEmpty()) return due;
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Effective criticality used for sorting and display. Uses the stored flag
      * when present; otherwise falls back to a keyword heuristic so tasks created

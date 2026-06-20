@@ -105,7 +105,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
             criticalBadge.setVisibility(task.isEffectivelyCritical() ? View.VISIBLE : View.GONE);
 
-            String due = task.getDueDate();
+            String due = task.getEffectiveDueDate();
             if (due != null && !due.trim().isEmpty()) {
                 dueText.setVisibility(View.VISIBLE);
                 dueText.setText("📅 Due: " + due);

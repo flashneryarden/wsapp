@@ -297,7 +297,7 @@ public class TaskDetailActivity extends AppCompatActivity {
             completedText.setVisibility(View.GONE);
         }
 
-        String due = task.getDueDate();
+        String due = task.getEffectiveDueDate();
         dueText.setText((due != null && !due.trim().isEmpty()) ? "📅 Due: " + due : "No due date");
 
         messageText.setText(task.getText());
