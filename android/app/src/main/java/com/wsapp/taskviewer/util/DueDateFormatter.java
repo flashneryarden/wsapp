@@ -33,7 +33,9 @@ public final class DueDateFormatter {
         LocalDate date = parseDate(raw);
         if (date == null) date = resolveRelativeWord(raw, anchorDate(createdAtIso));
         if (date == null) return raw.trim();
-        return relative(date, LocalDate.now());
+        LocalDate today = LocalDate.now();
+        if (date.isBefore(today)) return null; // hide past due dates
+        return relative(date, today);
     }
 
     /** True when the value resolves to a concrete date strictly before today. */
