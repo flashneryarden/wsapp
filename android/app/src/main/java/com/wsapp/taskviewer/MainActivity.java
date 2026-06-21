@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     private TaskAdapter adapter;
     private SwipeRefreshLayout swipeRefresh;
     private TextView emptyView;
+    private TextView filterBanner;
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
 
@@ -68,6 +69,14 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         recyclerView = findViewById(R.id.recyclerView);
         swipeRefresh = findViewById(R.id.swipeRefresh);
         emptyView = findViewById(R.id.emptyView);
+        filterBanner = findViewById(R.id.filterBanner);
+        filterBanner.setOnClickListener(v -> {
+            currentFilter = null;
+            groupFilter = null;
+            senderFilter = null;
+            applyView();
+            Toast.makeText(this, "Filters cleared", Toast.LENGTH_SHORT).show();
+        });
         FloatingActionButton fabAdd = findViewById(R.id.fabAdd);
 
         adapter = new TaskAdapter(this);
@@ -174,6 +183,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         adapter.setTasks(filtered);
 
         setTitle(buildTitle());
+        updateFilterBanner(latestTasks.size() - filtered.size());
 
         if (filtered.isEmpty()) {
             emptyView.setText(hasActiveFilter() ? "No matching tasks" : "No tasks yet");
@@ -181,6 +191,32 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         } else {
             emptyView.setVisibility(View.GONE);
         }
+    }
+
+    /**
+     * Shows or hides the filter banner. When a filter is active it explains what is
+     * filtered and how many tasks are hidden, and tapping it clears all filters.
+     */
+    private void updateFilterBanner(int hiddenCount) {
+        if (!hasActiveFilter()) {
+            filterBanner.setVisibility(View.GONE);
+            return;
+        }
+        String what;
+        if (groupFilter != null) {
+            what = "Group: " + groupFilter;
+        } else if (senderFilter != null) {
+            what = "Sender: " + senderFilter;
+        } else {
+            what = "Status: " + ("pending".equals(currentFilter) ? "Pending" : "Done");
+        }
+        String text = "Filtered · " + what;
+        if (hiddenCount > 0) {
+            text += "  (" + hiddenCount + " hidden)";
+        }
+        text += "  —  tap to clear";
+        filterBanner.setText(text);
+        filterBanner.setVisibility(View.VISIBLE);
     }
 
     private boolean hasActiveFilter() {
