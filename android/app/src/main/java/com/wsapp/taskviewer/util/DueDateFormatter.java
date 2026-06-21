@@ -49,6 +49,18 @@ public final class DueDateFormatter {
     }
 
     /**
+     * Resolve the effective due value to a concrete {@link LocalDate}, anchoring
+     * relative words (today/tomorrow) to the task's creation date. Returns null
+     * when no date can be determined (e.g. free text or no due info).
+     */
+    public static LocalDate resolve(String raw, String createdAtIso) {
+        if (raw == null || raw.trim().isEmpty()) return null;
+        LocalDate date = parseDate(raw);
+        if (date == null) date = resolveRelativeWord(raw, anchorDate(createdAtIso));
+        return date;
+    }
+
+    /**
      * Returns a copy of the action items with any "[due: ...]" marker whose date
      * has already passed removed, or null if nothing changed. Items that become
      * empty after removal are dropped. Relative words are anchored to the task's

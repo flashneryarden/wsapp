@@ -8,18 +8,64 @@
         app:showAsAction="ifRoom" />
 
     <item
-        android:id="@+id/filter_all"
-        android:title="All Tasks"
+        android:id="@+id/sort_menu"
+        android:title="Sort"
+        app:showAsAction="never">
+        <menu>
+            <group android:id="@+id/sort_group" android:checkableBehavior="single">
+                <item
+                    android:id="@+id/sort_critical"
+                    android:title="Critical First"
+                    android:checked="true" />
+                <item
+                    android:id="@+id/sort_due"
+                    android:title="Due Date" />
+                <item
+                    android:id="@+id/sort_newest"
+                    android:title="Newest First" />
+                <item
+                    android:id="@+id/sort_by_group"
+                    android:title="By Group" />
+                <item
+                    android:id="@+id/sort_by_sender"
+                    android:title="By Sender" />
+            </group>
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/filter_status_menu"
+        android:title="Filter by Status"
+        app:showAsAction="never">
+        <menu>
+            <group android:id="@+id/filter_status_group" android:checkableBehavior="single">
+                <item
+                    android:id="@+id/filter_all"
+                    android:title="All Tasks"
+                    android:checked="true" />
+                <item
+                    android:id="@+id/filter_pending"
+                    android:title="Pending Only" />
+                <item
+                    android:id="@+id/filter_done"
+                    android:title="Completed Only" />
+            </group>
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/filter_by_group"
+        android:title="Filter by Group…"
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/filter_pending"
-        android:title="Pending Only"
+        android:id="@+id/filter_by_sender"
+        android:title="Filter by Sender…"
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/filter_done"
-        android:title="Completed Only"
+        android:id="@+id/clear_filters"
+        android:title="Clear Filters"
         app:showAsAction="never" />
 
     <item

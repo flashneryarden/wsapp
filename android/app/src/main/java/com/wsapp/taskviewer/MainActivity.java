@@ -50,6 +50,14 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     // Filter: null = all, "pending", "done"
     private String currentFilter = null;
 
+    private enum SortMode { CRITICAL_FIRST, DUE_DATE, NEWEST, GROUP, SENDER }
+    private SortMode currentSort = SortMode.CRITICAL_FIRST;
+    // null = no group/sender restriction
+    private String groupFilter = null;
+    private String senderFilter = null;
+    // Most recent tasks from Firestore, used to rebuild the view when sort/filter changes.
+    private final List<Task> latestTasks = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -150,21 +158,87 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
 
             clearPastDueDates(allTasks);
 
-            List<Task> filtered = filterTasks(allTasks);
-            // Critical tasks first; stable sort preserves the id-desc order within each group.
-            java.util.Collections.sort(filtered,
-                    (a, b) -> Boolean.compare(b.isEffectivelyCritical(), a.isEffectivelyCritical()));
-            adapter.setTasks(filtered);
-
-            if (filtered.isEmpty()) {
-                emptyView.setText(currentFilter != null
-                        ? "No " + currentFilter + " tasks"
-                        : "No tasks yet");
-                emptyView.setVisibility(View.VISIBLE);
-            } else {
-                emptyView.setVisibility(View.GONE);
-            }
+            latestTasks.clear();
+            latestTasks.addAll(allTasks);
+            applyView();
         });
+    }
+
+    /**
+     * Applies the active status/group/sender filters and the selected sort order
+     * to {@link #latestTasks}, then updates the adapter, title and empty state.
+     */
+    private void applyView() {
+        List<Task> filtered = filterTasks(latestTasks);
+        sortTasks(filtered);
+        adapter.setTasks(filtered);
+
+        setTitle(buildTitle());
+
+        if (filtered.isEmpty()) {
+            emptyView.setText(hasActiveFilter() ? "No matching tasks" : "No tasks yet");
+            emptyView.setVisibility(View.VISIBLE);
+        } else {
+            emptyView.setVisibility(View.GONE);
+        }
+    }
+
+    private boolean hasActiveFilter() {
+        return currentFilter != null || groupFilter != null || senderFilter != null;
+    }
+
+    private String buildTitle() {
+        StringBuilder sb = new StringBuilder("Tasks");
+        if (groupFilter != null) {
+            sb.append(" · ").append(groupFilter);
+        } else if (senderFilter != null) {
+            sb.append(" · ").append(senderFilter);
+        } else if (currentFilter != null) {
+            sb.append(" · ").append("pending".equals(currentFilter) ? "Pending" : "Done");
+        }
+        return sb.toString();
+    }
+
+    private void sortTasks(List<Task> tasks) {
+        switch (currentSort) {
+            case DUE_DATE:
+                // Tasks with a resolvable due date first, soonest at the top; undated last.
+                java.util.Collections.sort(tasks, (a, b) -> {
+                    java.time.LocalDate da = DueDateFormatter.resolve(a.getEffectiveDueDate(), a.getCreatedAt());
+                    java.time.LocalDate db2 = DueDateFormatter.resolve(b.getEffectiveDueDate(), b.getCreatedAt());
+                    if (da == null && db2 == null) return Integer.compare(b.getId(), a.getId());
+                    if (da == null) return 1;
+                    if (db2 == null) return -1;
+                    return da.compareTo(db2);
+                });
+                break;
+            case NEWEST:
+                java.util.Collections.sort(tasks, (a, b) -> Integer.compare(b.getId(), a.getId()));
+                break;
+            case GROUP:
+                java.util.Collections.sort(tasks, (a, b) -> {
+                    int c = safe(a.getOrigChatName()).compareToIgnoreCase(safe(b.getOrigChatName()));
+                    return c != 0 ? c : Integer.compare(b.getId(), a.getId());
+                });
+                break;
+            case SENDER:
+                java.util.Collections.sort(tasks, (a, b) -> {
+                    int c = safe(a.getOrigSender()).compareToIgnoreCase(safe(b.getOrigSender()));
+                    return c != 0 ? c : Integer.compare(b.getId(), a.getId());
+                });
+                break;
+            case CRITICAL_FIRST:
+            default:
+                // Newest first, then float critical tasks to the top (stable sort).
+                java.util.Collections.sort(tasks, (a, b) -> Integer.compare(b.getId(), a.getId()));
+                java.util.Collections.sort(tasks,
+                        (a, b) -> Boolean.compare(b.isEffectivelyCritical(), a.isEffectivelyCritical()));
+                break;
+        }
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
     }
 
     /**
@@ -195,12 +269,13 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         }
     }
 
-    private List<Task> filterTasks(List<Task> tasks) {        if (currentFilter == null) return tasks;
+    private List<Task> filterTasks(List<Task> tasks) {
         List<Task> result = new ArrayList<>();
         for (Task t : tasks) {
-            if (currentFilter.equals(t.getStatus())) {
-                result.add(t);
-            }
+            if (currentFilter != null && !currentFilter.equals(t.getStatus())) continue;
+            if (groupFilter != null && !groupFilter.equals(safe(t.getOrigChatName()))) continue;
+            if (senderFilter != null && !senderFilter.equals(safe(t.getOrigSender()))) continue;
+            result.add(t);
         }
         return result;
     }
@@ -216,15 +291,41 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         int id = item.getItemId();
         if (id == R.id.pill_box) {
             startActivity(new Intent(this, PillBoxActivity.class));
+            return true;
+        } else if (id == R.id.sort_critical) {
+            item.setChecked(true);
+            currentSort = SortMode.CRITICAL_FIRST;
+        } else if (id == R.id.sort_due) {
+            item.setChecked(true);
+            currentSort = SortMode.DUE_DATE;
+        } else if (id == R.id.sort_newest) {
+            item.setChecked(true);
+            currentSort = SortMode.NEWEST;
+        } else if (id == R.id.sort_by_group) {
+            item.setChecked(true);
+            currentSort = SortMode.GROUP;
+        } else if (id == R.id.sort_by_sender) {
+            item.setChecked(true);
+            currentSort = SortMode.SENDER;
         } else if (id == R.id.filter_all) {
+            item.setChecked(true);
             currentFilter = null;
-            setTitle("Tasks — All");
         } else if (id == R.id.filter_pending) {
+            item.setChecked(true);
             currentFilter = "pending";
-            setTitle("Tasks — Pending");
         } else if (id == R.id.filter_done) {
+            item.setChecked(true);
             currentFilter = "done";
-            setTitle("Tasks — Done");
+        } else if (id == R.id.filter_by_group) {
+            showValueFilterDialog(true);
+            return true;
+        } else if (id == R.id.filter_by_sender) {
+            showValueFilterDialog(false);
+            return true;
+        } else if (id == R.id.clear_filters) {
+            currentFilter = null;
+            groupFilter = null;
+            senderFilter = null;
         } else if (id == R.id.delete_old) {
             showDeleteOldTasksDialog();
             return true;
@@ -234,8 +335,45 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         } else {
             return super.onOptionsItemSelected(item);
         }
-        attachListener();
+        applyView();
         return true;
+    }
+
+    /**
+     * Shows a single-choice dialog of the distinct groups (or senders) present in
+     * the loaded tasks and applies the chosen value as a filter. Selecting a group
+     * clears any sender filter and vice versa, so only one is active at a time.
+     */
+    private void showValueFilterDialog(boolean byGroup) {
+        java.util.TreeSet<String> values = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Task t : latestTasks) {
+            String v = byGroup ? t.getOrigChatName() : t.getOrigSender();
+            if (v != null && !v.trim().isEmpty()) values.add(v.trim());
+        }
+        if (values.isEmpty()) {
+            Toast.makeText(this, "No " + (byGroup ? "groups" : "senders") + " available",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final List<String> options = new ArrayList<>();
+        options.add(byGroup ? "All Groups" : "All Senders");
+        options.addAll(values);
+        String[] labels = options.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle(byGroup ? "Filter by Group" : "Filter by Sender")
+                .setItems(labels, (dialog, which) -> {
+                    String chosen = which == 0 ? null : options.get(which);
+                    if (byGroup) {
+                        groupFilter = chosen;
+                        senderFilter = null;
+                    } else {
+                        senderFilter = chosen;
+                        groupFilter = null;
+                    }
+                    applyView();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     @Override
