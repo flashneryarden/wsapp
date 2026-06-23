@@ -9,6 +9,7 @@ Respond in this exact format:
 TASK: yes/no
 IMPORTANT: yes/no
 CRITICAL: yes/no
+CATEGORY: <one of: school, family, friends, other>
 DUE: <due date in YYYY-MM-DD if a deadline/date is mentioned, otherwise none>
 SUMMARY: <one-line summary of the message>
 ACTION_ITEMS:
@@ -18,6 +19,7 @@ ACTION_ITEMS:
 If there are no action items, write "none" after ACTION_ITEMS.
 If an action item has a due date or deadline mentioned in the message, include it in [due: ...] format.
 For the DUE field, resolve relative dates (e.g. "tomorrow", "מחר") to an absolute YYYY-MM-DD date when possible; if no date is mentioned, write "none".
+For CATEGORY, choose the single best fit: "school" for studies/classes/homework/exams/teachers, "family" for family/household matters, "friends" for friends/social plans, or "other" when none clearly apply.
 IMPORTANT: The SUMMARY and ACTION_ITEMS must be written in the same language as the input message.
 Be concise. Analyze the message regardless of language.`;
 
@@ -25,6 +27,7 @@ export interface AnalysisResult {
   hasTask: boolean;
   isImportant: boolean;
   isCritical: boolean;
+  category: string;
   dueDate: string | null;
   summary: string;
   actionItems: string[];
@@ -134,6 +137,21 @@ function stripPastDueMarker(item: string): string {
     .trim();
 }
 
+const VALID_CATEGORIES = ["school", "family", "friends", "other"] as const;
+
+/** Coerce a model-provided category to one of the allowed values; defaults to "other". */
+function normalizeCategory(raw: string | undefined): string {
+  if (!raw) return "other";
+  const s = raw.trim().toLowerCase();
+  if (s.includes("school") || s.includes("study") || s.includes("studies")) return "school";
+  if (s.includes("family")) return "family";
+  if (s.includes("friend")) return "friends";
+  for (const c of VALID_CATEGORIES) {
+    if (s === c) return c;
+  }
+  return "other";
+}
+
 export async function analyzeMessage(text: string): Promise<AnalysisResult> {
   const raw = await sendWithRetry(`Message to analyze:\n"${text}"`);
 
@@ -141,6 +159,9 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
   const isImportant = /IMPORTANT:\s*yes/i.test(raw);
   // Fall back to importance when the model omits the CRITICAL line.
   const isCritical = /CRITICAL:/i.test(raw) ? /CRITICAL:\s*yes/i.test(raw) : isImportant;
+
+  const categoryMatch = raw.match(/CATEGORY:\s*(.+)/i);
+  const category = normalizeCategory(categoryMatch?.[1]?.trim());
 
   const summaryMatch = raw.match(/SUMMARY:\s*(.+)/i);
   const summary = summaryMatch?.[1]?.trim() ?? "";
@@ -158,7 +179,7 @@ export async function analyzeMessage(text: string): Promise<AnalysisResult> {
     }
   }
 
-  return { hasTask, isImportant, isCritical, dueDate, summary, actionItems, raw };
+  return { hasTask, isImportant, isCritical, category, dueDate, summary, actionItems, raw };
 }
 
 export async function resetChatSession(): Promise<void> {

@@ -40,6 +40,7 @@ export interface Task {
   completedAt: string | null;
   notes: string[];
   critical: boolean;
+  category: string;
   dueDate: string | null;
 }
 

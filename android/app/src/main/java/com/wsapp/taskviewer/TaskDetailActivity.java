@@ -37,7 +37,8 @@ public class TaskDetailActivity extends AppCompatActivity {
     private TextView actionItemsLabel, notesLabel;
     private TextView completedText;
     private TextView dueText;
-    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup, btnSetDueDate;
+    private TextView categoryBadge;
+    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup, btnSetDueDate, btnSetCategory;
 
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
@@ -73,6 +74,8 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnDelete = findViewById(R.id.btnDelete);
         btnSkipGroup = findViewById(R.id.btnSkipGroup);
         btnSetDueDate = findViewById(R.id.btnSetDueDate);
+        categoryBadge = findViewById(R.id.detailCategoryBadge);
+        btnSetCategory = findViewById(R.id.btnSetCategory);
 
         db = FirebaseFirestore.getInstance();
 
@@ -89,6 +92,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnDelete.setOnClickListener(v -> confirmDelete());
         btnSkipGroup.setOnClickListener(v -> showSkipGroupDialog());
         btnSetDueDate.setOnClickListener(v -> showDueDatePicker());
+        btnSetCategory.setOnClickListener(v -> showCategoryPicker());
 
         loadTask(taskId);
     }
@@ -282,6 +286,36 @@ public class TaskDetailActivity extends AppCompatActivity {
                         "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
+    private void showCategoryPicker() {
+        if (currentTask == null) return;
+        String[] keys = com.wsapp.taskviewer.util.Categories.KEYS;
+        String[] labels = new String[keys.length];
+        int selected = -1;
+        String current = currentTask.getEffectiveCategory();
+        for (int i = 0; i < keys.length; i++) {
+            labels[i] = com.wsapp.taskviewer.util.Categories.label(keys[i]);
+            if (keys[i].equals(current)) selected = i;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Category")
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    saveCategory(keys[which]);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void saveCategory(String value) {
+        db.collection("tasks").document(String.valueOf(taskId))
+                .update("category", value)
+                .addOnSuccessListener(v -> Toast.makeText(this,
+                        "Category set: " + com.wsapp.taskviewer.util.Categories.label(value),
+                        Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e -> Toast.makeText(this,
+                        "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
     private void displayTask(Task task) {
         statusIcon.setText(task.isDone() ? "✅" : "⏳");
         taskTitle.setText((task.isEffectivelyCritical() ? "🔴 " : "") + "Task #" + task.getId());
@@ -300,6 +334,11 @@ public class TaskDetailActivity extends AppCompatActivity {
 
         String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt());
         dueText.setText((due != null && !due.trim().isEmpty()) ? "📅 Due: " + due : "No due date");
+
+        String category = task.getEffectiveCategory();
+        categoryBadge.setText(com.wsapp.taskviewer.util.Categories.label(category));
+        categoryBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                com.wsapp.taskviewer.util.Categories.color(category)));
 
         messageText.setText(task.getText());
 

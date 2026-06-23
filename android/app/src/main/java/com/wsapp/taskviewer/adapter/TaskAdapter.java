@@ -67,6 +67,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         private final TextView date;
         private final TextView actionItemCount;
         private final TextView criticalBadge;
+        private final TextView categoryBadge;
         private final TextView dueText;
         private final ImageButton btnDeleteTask;
 
@@ -79,6 +80,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             date = itemView.findViewById(R.id.date);
             actionItemCount = itemView.findViewById(R.id.actionItemCount);
             criticalBadge = itemView.findViewById(R.id.criticalBadge);
+            categoryBadge = itemView.findViewById(R.id.categoryBadge);
             dueText = itemView.findViewById(R.id.dueText);
             btnDeleteTask = itemView.findViewById(R.id.btnDeleteTask);
 
@@ -105,6 +107,11 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             date.setText(formatDate(task.getCreatedAt()));
 
             criticalBadge.setVisibility(task.isEffectivelyCritical() ? View.VISIBLE : View.GONE);
+
+            String category = task.getEffectiveCategory();
+            categoryBadge.setText(com.wsapp.taskviewer.util.Categories.label(category).toUpperCase());
+            categoryBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                    com.wsapp.taskviewer.util.Categories.color(category)));
 
             String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt());
             if (due != null && !due.trim().isEmpty()) {

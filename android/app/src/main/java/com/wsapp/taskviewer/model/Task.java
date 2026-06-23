@@ -18,6 +18,7 @@ public class Task {
     private String completedAt;
     private List<String> notes;
     private Boolean critical;
+    private String category;
     private String dueDate;
 
     public Task() {
@@ -61,6 +62,25 @@ public class Task {
 
     public String getDueDate() { return dueDate; }
     public void setDueDate(String dueDate) { this.dueDate = dueDate; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    /**
+     * Category for display/filtering. Uses the stored category when present;
+     * otherwise falls back to a heuristic over the group, sender and content so
+     * tasks created before this feature still get a sensible category.
+     */
+    public String getEffectiveCategory() {
+        String c = com.wsapp.taskviewer.util.Categories.normalize(category);
+        if (c != null) return c;
+        StringBuilder items = new StringBuilder();
+        if (actionItems != null) {
+            for (String a : actionItems) items.append(a).append(' ');
+        }
+        return com.wsapp.taskviewer.util.Categories.classify(
+                origChatName, origSender, summary, text, items.toString());
+    }
 
     private static final java.util.regex.Pattern DUE_PATTERN =
             java.util.regex.Pattern.compile("due:\\s*([^\\]\\n]+)", java.util.regex.Pattern.CASE_INSENSITIVE);

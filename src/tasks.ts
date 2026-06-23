@@ -43,6 +43,7 @@ export function addTask(
     completedAt: null,
     notes: [],
     critical: analysis.isCritical,
+    category: analysis.category,
     dueDate: analysis.dueDate,
   };
   tasks.push(task);
@@ -116,6 +117,7 @@ export function addManualTask(text: string): Task {
     completedAt: null,
     notes: [],
     critical: false,
+    category: "other",
     dueDate: null,
   };
   tasks.push(task);

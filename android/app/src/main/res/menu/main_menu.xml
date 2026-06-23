@@ -29,6 +29,9 @@
                 <item
                     android:id="@+id/sort_by_sender"
                     android:title="By Sender" />
+                <item
+                    android:id="@+id/sort_by_category"
+                    android:title="By Category" />
             </group>
         </menu>
     </item>
@@ -61,6 +64,11 @@
     <item
         android:id="@+id/filter_by_sender"
         android:title="Filter by Sender…"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/filter_by_category"
+        android:title="Filter by Category…"
         app:showAsAction="never" />
 
     <item

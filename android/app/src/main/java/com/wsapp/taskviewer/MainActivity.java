@@ -51,11 +51,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     // Filter: null = all, "pending", "done"
     private String currentFilter = null;
 
-    private enum SortMode { CRITICAL_FIRST, DUE_DATE, NEWEST, GROUP, SENDER }
+    private enum SortMode { CRITICAL_FIRST, DUE_DATE, NEWEST, GROUP, SENDER, CATEGORY }
     private SortMode currentSort = SortMode.CRITICAL_FIRST;
-    // null = no group/sender restriction
+    // null = no group/sender/category restriction
     private String groupFilter = null;
     private String senderFilter = null;
+    private String categoryFilter = null;
     // Most recent tasks from Firestore, used to rebuild the view when sort/filter changes.
     private final List<Task> latestTasks = new ArrayList<>();
 
@@ -74,6 +75,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             currentFilter = null;
             groupFilter = null;
             senderFilter = null;
+            categoryFilter = null;
             applyView();
             Toast.makeText(this, "Filters cleared", Toast.LENGTH_SHORT).show();
         });
@@ -202,15 +204,16 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             filterBanner.setVisibility(View.GONE);
             return;
         }
-        String what;
-        if (groupFilter != null) {
-            what = "Group: " + groupFilter;
-        } else if (senderFilter != null) {
-            what = "Sender: " + senderFilter;
-        } else {
-            what = "Status: " + ("pending".equals(currentFilter) ? "Pending" : "Done");
+        List<String> parts = new ArrayList<>();
+        if (categoryFilter != null) {
+            parts.add("Category: " + com.wsapp.taskviewer.util.Categories.label(categoryFilter));
         }
-        String text = "Filtered · " + what;
+        if (groupFilter != null) parts.add("Group: " + groupFilter);
+        if (senderFilter != null) parts.add("Sender: " + senderFilter);
+        if (currentFilter != null) {
+            parts.add("Status: " + ("pending".equals(currentFilter) ? "Pending" : "Done"));
+        }
+        String text = "Filtered · " + android.text.TextUtils.join(", ", parts);
         if (hiddenCount > 0) {
             text += "  (" + hiddenCount + " hidden)";
         }
@@ -220,12 +223,15 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     }
 
     private boolean hasActiveFilter() {
-        return currentFilter != null || groupFilter != null || senderFilter != null;
+        return currentFilter != null || groupFilter != null || senderFilter != null
+                || categoryFilter != null;
     }
 
     private String buildTitle() {
         StringBuilder sb = new StringBuilder("Tasks");
-        if (groupFilter != null) {
+        if (categoryFilter != null) {
+            sb.append(" · ").append(com.wsapp.taskviewer.util.Categories.label(categoryFilter));
+        } else if (groupFilter != null) {
             sb.append(" · ").append(groupFilter);
         } else if (senderFilter != null) {
             sb.append(" · ").append(senderFilter);
@@ -260,6 +266,12 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             case SENDER:
                 java.util.Collections.sort(tasks, (a, b) -> {
                     int c = safe(a.getOrigSender()).compareToIgnoreCase(safe(b.getOrigSender()));
+                    return c != 0 ? c : Integer.compare(b.getId(), a.getId());
+                });
+                break;
+            case CATEGORY:
+                java.util.Collections.sort(tasks, (a, b) -> {
+                    int c = a.getEffectiveCategory().compareToIgnoreCase(b.getEffectiveCategory());
                     return c != 0 ? c : Integer.compare(b.getId(), a.getId());
                 });
                 break;
@@ -311,6 +323,7 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
             if (currentFilter != null && !currentFilter.equals(t.getStatus())) continue;
             if (groupFilter != null && !groupFilter.equals(safe(t.getOrigChatName()))) continue;
             if (senderFilter != null && !senderFilter.equals(safe(t.getOrigSender()))) continue;
+            if (categoryFilter != null && !categoryFilter.equals(t.getEffectiveCategory())) continue;
             result.add(t);
         }
         return result;
@@ -343,6 +356,9 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         } else if (id == R.id.sort_by_sender) {
             item.setChecked(true);
             currentSort = SortMode.SENDER;
+        } else if (id == R.id.sort_by_category) {
+            item.setChecked(true);
+            currentSort = SortMode.CATEGORY;
         } else if (id == R.id.filter_all) {
             item.setChecked(true);
             currentFilter = null;
@@ -358,10 +374,14 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         } else if (id == R.id.filter_by_sender) {
             showValueFilterDialog(false);
             return true;
+        } else if (id == R.id.filter_by_category) {
+            showCategoryFilterDialog();
+            return true;
         } else if (id == R.id.clear_filters) {
             currentFilter = null;
             groupFilter = null;
             senderFilter = null;
+            categoryFilter = null;
         } else if (id == R.id.delete_old) {
             showDeleteOldTasksDialog();
             return true;
@@ -373,6 +393,27 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
         }
         applyView();
         return true;
+    }
+
+    /** Lets the user filter by one of the fixed task categories (or all). */
+    private void showCategoryFilterDialog() {
+        String[] keys = com.wsapp.taskviewer.util.Categories.KEYS;
+        final List<String> options = new ArrayList<>();
+        options.add(null); // "All Categories"
+        String[] labels = new String[keys.length + 1];
+        labels[0] = "All Categories";
+        for (int i = 0; i < keys.length; i++) {
+            options.add(keys[i]);
+            labels[i + 1] = com.wsapp.taskviewer.util.Categories.label(keys[i]);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Filter by Category")
+                .setItems(labels, (dialog, which) -> {
+                    categoryFilter = options.get(which);
+                    applyView();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     /**
