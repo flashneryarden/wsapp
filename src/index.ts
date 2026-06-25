@@ -340,7 +340,8 @@ wa.onMessage(async (msg) => {
     const result = await analyzeMessage(msg.text);
     const taskIcon = result.hasTask ? "\x1b[33m⚠ TASK\x1b[0m" : "";
     const importantIcon = result.isImportant ? "\x1b[31m❗IMPORTANT\x1b[0m" : "";
-    const tags = [taskIcon, importantIcon].filter(Boolean).join(" ");
+    const categoryIcon = result.hasTask ? `\x1b[36m🏷 ${result.category}\x1b[0m` : "";
+    const tags = [taskIcon, importantIcon, categoryIcon].filter(Boolean).join(" ");
     if (tags) {
       console.log(`\x1b[90m  │ ${tags} — ${result.summary}\x1b[0m`);
       for (const item of result.actionItems) {
