@@ -641,9 +641,16 @@ async function cmdEval(raw: string) {
   const taskIcon = result.hasTask ? "\x1b[33m⚠ YES\x1b[0m" : "\x1b[32m✓ No\x1b[0m";
   const importantIcon = result.isImportant ? "\x1b[33m⚠ YES\x1b[0m" : "\x1b[32m✓ No\x1b[0m";
 
+  const criticalIcon = result.isCritical ? "\x1b[31m⚠ YES\x1b[0m" : "\x1b[32m✓ No\x1b[0m";
+
   console.log(`\n  \x1b[1mAnalysis:\x1b[0m`);
   console.log(`  Has Task:      ${taskIcon}`);
   console.log(`  Important:     ${importantIcon}`);
+  console.log(`  Critical:      ${criticalIcon}`);
+  console.log(`  Category:      ${result.category}`);
+  if (result.dueDate) {
+    console.log(`  Due:           ${result.dueDate}`);
+  }
   if (result.summary) {
     console.log(`  Summary:       ${result.summary}`);
   }
