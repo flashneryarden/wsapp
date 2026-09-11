@@ -1,7 +1,11 @@
 package com.wsapp.taskviewer;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -13,6 +17,8 @@ import androidx.appcompat.app.AlertDialog;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -25,6 +31,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
+import com.google.firebase.messaging.FirebaseMessaging;
 import com.wsapp.taskviewer.adapter.TaskAdapter;
 import com.wsapp.taskviewer.model.Task;
 import com.wsapp.taskviewer.util.DueDateFormatter;
@@ -40,57 +47,103 @@ import java.util.TimeZone;
 
 public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTaskClickListener {
 
-    private RecyclerView recyclerView;
-    private TaskAdapter adapter;
-    private SwipeRefreshLayout swipeRefresh;
-    private TextView emptyView;
-    private TextView filterBanner;
-    private FirebaseFirestore db;
-    private ListenerRegistration listenerRegistration;
+    private RecyclerView recyclerView; // The scrolling UI list that displays task cards.
+    private TaskAdapter adapter; // Converts Task objects into views shown by the RecyclerView.
+    private SwipeRefreshLayout swipeRefresh; // Detects pull-to-refresh gestures around the task list.
+    private TextView emptyView; // Displays a message when no tasks match the current view.
+    private TextView filterBanner; // Shows the active filters and lets the user clear them.
+    private FirebaseFirestore db; // Provides access to the app's cloud Firestore database.
+    private ListenerRegistration listenerRegistration; // Represents the active real-time Firestore listener.
 
     // Filter: null = all, "pending", "done"
-    private String currentFilter = null;
+    private String currentFilter = null; // Restricts tasks by status, or null to show every status.
 
     private enum SortMode { CRITICAL_FIRST, DUE_DATE, NEWEST, GROUP, SENDER, CATEGORY }
-    private SortMode currentSort = SortMode.CRITICAL_FIRST;
+    private SortMode currentSort = SortMode.CRITICAL_FIRST; // Stores the currently selected task ordering.
     // null = no group/sender/category restriction
-    private String groupFilter = null;
-    private String senderFilter = null;
-    private String categoryFilter = null;
+    private String groupFilter = null; // Restricts tasks to one WhatsApp group, or null for all groups.
+    private String senderFilter = null; // Restricts tasks to one sender, or null for all senders.
+    private String categoryFilter = null; // Restricts tasks to one category, or null for all categories.
     // Most recent tasks from Firestore, used to rebuild the view when sort/filter changes.
-    private final List<Task> latestTasks = new ArrayList<>();
+    private final List<Task> latestTasks = new ArrayList<>(); // Keeps the unfiltered task snapshot received from Firestore.
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        super.onCreate(savedInstanceState); // Let AppCompatActivity perform its standard activity initialization.
+        setContentView(R.layout.activity_main); // Build this screen from res/layout/activity_main.xml.
 
-        setTitle("Tasks");
+        setTitle("Tasks"); // Set the text displayed in the activity's top app bar.
 
-        recyclerView = findViewById(R.id.recyclerView);
-        swipeRefresh = findViewById(R.id.swipeRefresh);
-        emptyView = findViewById(R.id.emptyView);
-        filterBanner = findViewById(R.id.filterBanner);
-        filterBanner.setOnClickListener(v -> {
-            currentFilter = null;
-            groupFilter = null;
-            senderFilter = null;
-            categoryFilter = null;
-            applyView();
-            Toast.makeText(this, "Filters cleared", Toast.LENGTH_SHORT).show();
-        });
-        FloatingActionButton fabAdd = findViewById(R.id.fabAdd);
+        recyclerView = findViewById(R.id.recyclerView); // Find the scrolling list that displays task cards.
+        swipeRefresh = findViewById(R.id.swipeRefresh); // Find the container that handles pull-to-refresh gestures.
+        emptyView = findViewById(R.id.emptyView); // Find the message shown when there are no tasks to display.
+        filterBanner = findViewById(R.id.filterBanner); // Find the banner that describes the active filters.
+        filterBanner.setOnClickListener(v -> { // Clear every active filter when the banner is tapped.
+            currentFilter = null; // Remove the pending/done status filter.
+            groupFilter = null; // Remove the WhatsApp group filter.
+            senderFilter = null; // Remove the sender filter.
+            categoryFilter = null; // Remove the task category filter.
+            applyView(); // Rebuild the visible list using all loaded tasks.
+            Toast.makeText(this, "Filters cleared", Toast.LENGTH_SHORT).show(); // Briefly confirm the action.
+        }); // Finish configuring the filter-banner click handler.
+        FloatingActionButton fabAdd = findViewById(R.id.fabAdd); // Find the floating button used to create a task.
 
-        adapter = new TaskAdapter(this);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.setAdapter(adapter);
+        adapter = new TaskAdapter(this); // Create the object that converts Task objects into list-item views.
+        recyclerView.setLayoutManager(new LinearLayoutManager(this)); // Arrange task cards in a vertical list.
+        recyclerView.setAdapter(adapter); // Connect the task adapter to the RecyclerView.
 
-        db = FirebaseFirestore.getInstance();
+        db = FirebaseFirestore.getInstance(); // Get the shared Firestore database client.
+        CriticalTaskNotifications.createChannel(this); // Prepare the high-priority lock-screen notification channel.
+        DeviceRegistration.registerCurrentToken(); // Register this exact phone for direct critical-task pushes.
+        subscribeToCriticalTaskNotifications(); // Also subscribe without relying on Firestore device-registration rules.
+        requestNotificationPermission(); // Ask Android 13+ for permission to display notifications.
 
-        swipeRefresh.setOnRefreshListener(this::attachListener);
-        fabAdd.setOnClickListener(v -> showAddTaskDialog());
+        swipeRefresh.setOnRefreshListener(this::attachListener); // Reload the Firestore listener after a swipe.
+        fabAdd.setOnClickListener(v -> showAddTaskDialog()); // Open the new-task dialog when the add button is tapped.
 
-        attachListener();
+        attachListener(); // Start listening for real-time changes to the Firestore tasks collection.
+        openTaskFromNotification(getIntent()); // Open a critical task when this activity was launched from its notification.
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        openTaskFromNotification(intent);
+    }
+
+    private void openTaskFromNotification(Intent intent) {
+        if (intent == null) return;
+
+        String taskIdValue = intent.getStringExtra("taskId");
+        if (taskIdValue == null) return;
+
+        intent.removeExtra("taskId");
+        try {
+            Intent detailIntent = new Intent(this, TaskDetailActivity.class);
+            detailIntent.putExtra("task_id", Integer.parseInt(taskIdValue));
+            startActivity(detailIntent);
+        } catch (NumberFormatException error) {
+            Log.w("MainActivity", "Invalid notification task ID: " + taskIdValue, error);
+        }
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    1001);
+        }
+    }
+
+    private void subscribeToCriticalTaskNotifications() {
+        FirebaseMessaging.getInstance()
+                .subscribeToTopic(CriticalTaskNotifications.TOPIC)
+                .addOnFailureListener(error ->
+                        Log.w("MainActivity", "Critical-task topic subscription failed", error));
     }
 
     private void showAddTaskDialog() {
@@ -144,35 +197,35 @@ public class MainActivity extends AppCompatActivity implements TaskAdapter.OnTas
     }
 
     private void attachListener() {
-        if (listenerRegistration != null) {
-            listenerRegistration.remove();
-        }
+        if (listenerRegistration != null) { // Check whether an older Firestore listener is still active.
+            listenerRegistration.remove(); // Stop the old listener to avoid receiving every update multiple times.
+        } // Finish cleaning up the previous listener.
 
-        Query query = db.collection("tasks").orderBy("id", Query.Direction.DESCENDING);
+        Query query = db.collection("tasks").orderBy("id", Query.Direction.DESCENDING); // Request all tasks, starting with the highest ID.
 
-        listenerRegistration = query.addSnapshotListener((snapshots, error) -> {
-            swipeRefresh.setRefreshing(false);
+        listenerRegistration = query.addSnapshotListener((snapshots, error) -> { // Run this callback now and whenever the tasks collection changes.
+            swipeRefresh.setRefreshing(false); // Hide the pull-to-refresh loading indicator.
 
-            if (error != null) {
-                emptyView.setText("Error loading tasks: " + error.getMessage());
-                emptyView.setVisibility(View.VISIBLE);
-                return;
-            }
+            if (error != null) { // Check whether Firestore failed to retrieve the task snapshot.
+                emptyView.setText("Error loading tasks: " + error.getMessage()); // Put the error message in the empty-state view.
+                emptyView.setVisibility(View.VISIBLE); // Make the error message visible to the user.
+                return; // Stop because there is no valid task data to process.
+            } // Finish handling a Firestore error.
 
-            if (snapshots == null) return;
+            if (snapshots == null) return; // Stop if Firestore returned neither an error nor a snapshot.
 
-            List<Task> allTasks = new ArrayList<>();
-            for (QueryDocumentSnapshot doc : snapshots) {
-                Task task = doc.toObject(Task.class);
-                allTasks.add(task);
-            }
+            List<Task> allTasks = new ArrayList<>(); // Create a list for the Task objects built from Firestore documents.
+            for (QueryDocumentSnapshot doc : snapshots) { // Visit every document in the current tasks snapshot.
+                Task task = doc.toObject(Task.class); // Convert the Firestore document fields into a Task object.
+                allTasks.add(task); // Add the converted task to the newly loaded list.
+            } // Finish converting all Firestore documents.
 
-            clearPastDueDates(allTasks);
+            clearPastDueDates(allTasks); // Remove due dates that have already passed.
 
-            latestTasks.clear();
-            latestTasks.addAll(allTasks);
-            applyView();
-        });
+            latestTasks.clear(); // Remove the previous in-memory Firestore snapshot.
+            latestTasks.addAll(allTasks); // Store the newly loaded tasks as the current complete snapshot.
+            applyView(); // Apply active filters and sorting, then update the RecyclerView.
+        }); // Register the callback and save its registration so it can later be removed.
     }
 
     /**

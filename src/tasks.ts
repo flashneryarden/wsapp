@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type { Task } from "./types.js";
 import type { AnalysisResult } from "./ai.js";
-import { syncTaskToFirestore, deleteTaskFromFirestore } from "./firestore.js";
+import { syncTaskToFirestore, publishNewTaskToFirestore, deleteTaskFromFirestore } from "./firestore.js";
 
 const TASKS_PATH = path.join(process.cwd(), "config", "tasks.json");
 
@@ -48,7 +48,7 @@ export function addTask(
   };
   tasks.push(task);
   saveTasks();
-  syncTaskToFirestore(task);
+  publishNewTaskToFirestore(task);
   return task;
 }
 

@@ -1,5 +1,6 @@
 import { initializeApp, cert, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import fs from "fs";
 import path from "path";
 import type { Task } from "./types.js";
@@ -7,6 +8,8 @@ import type { Task } from "./types.js";
 const SERVICE_ACCOUNT_PATH = path.join(process.cwd(), "config", "firebase-service-account.json");
 const COLLECTION = "tasks";
 const SKIPPED_GROUPS_COLLECTION = "skippedGroups";
+const DEVICES_COLLECTION = "devices";
+const CRITICAL_TASKS_TOPIC = "critical_tasks";
 
 let db: Firestore | null = null;
 
@@ -37,6 +40,96 @@ export async function syncTaskToFirestore(task: Task): Promise<void> {
     await db.collection(COLLECTION).doc(String(task.id)).set(task);
   } catch (err) {
     console.log(`\x1b[33m⚠ Firestore sync failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
+  }
+}
+
+export async function publishNewTaskToFirestore(task: Task): Promise<void> {
+  if (!db) return;
+
+  try {
+    await db.collection(COLLECTION).doc(String(task.id)).set(task);
+  } catch (err) {
+    console.log(`\x1b[33m⚠ Firestore sync failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
+    return;
+  }
+
+  if (!task.critical) return;
+
+  try {
+    const devices = await db.collection(DEVICES_COLLECTION).get();
+    const registrations = devices.docs
+      .map((doc) => ({ doc, token: doc.get("token") }))
+      .filter((entry): entry is { doc: FirebaseFirestore.QueryDocumentSnapshot; token: string } =>
+        typeof entry.token === "string" && entry.token.length > 0,
+      );
+
+    for (let start = 0; start < registrations.length; start += 500) {
+      const batch = registrations.slice(start, start + 500);
+      const response = await getMessaging().sendEachForMulticast({
+        tokens: batch.map((entry) => entry.token),
+        notification: {
+          title: "Critical task received",
+          body: task.summary || task.text,
+        },
+        data: {
+          taskId: String(task.id),
+          summary: task.summary || task.text,
+          source: `${task.origSender} (${task.origChatName})`,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "critical_tasks",
+            visibility: "public",
+            sound: "default",
+            defaultVibrateTimings: true,
+          },
+        },
+      });
+
+      const staleDocs = response.responses
+        .map((result, index) => ({ result, doc: batch[index]!.doc }))
+        .filter(({ result }) =>
+          result.error?.code === "messaging/registration-token-not-registered"
+          || result.error?.code === "messaging/invalid-registration-token",
+        )
+        .map(({ doc }) => doc.ref.delete());
+
+      await Promise.all(staleDocs);
+
+      if (response.failureCount > 0) {
+        const errors = response.responses
+          .filter((result) => !result.success)
+          .map((result) => result.error?.message ?? "unknown FCM error");
+        console.log(`\x1b[33m⚠ Critical-task notification had ${response.failureCount} failure(s): ${errors.join("; ")}\x1b[0m`);
+      }
+    }
+
+    if (registrations.length === 0) {
+      await getMessaging().send({
+        topic: CRITICAL_TASKS_TOPIC,
+        notification: {
+          title: "Critical task received",
+          body: task.summary || task.text,
+        },
+        data: {
+          taskId: String(task.id),
+          summary: task.summary || task.text,
+          source: `${task.origSender} (${task.origChatName})`,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "critical_tasks",
+            visibility: "public",
+            sound: "default",
+            defaultVibrateTimings: true,
+          },
+        },
+      });
+    }
+  } catch (err) {
+    console.log(`\x1b[33m⚠ Critical-task notification failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
   }
 }
 
