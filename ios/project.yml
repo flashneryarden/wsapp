@@ -1,0 +1,45 @@
+name: TaskViewer
+options:
+  bundleIdPrefix: com.wsapp
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: 11.0.0
+targets:
+  TaskViewer:
+    type: application
+    platform: iOS
+    sources:
+      - path: TaskViewer
+    dependencies:
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseMessaging
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wsapp.taskviewer
+        SWIFT_VERSION: "5.10"
+        CODE_SIGN_ENTITLEMENTS: TaskViewer/Resources/TaskViewer.entitlements
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+    info:
+      path: TaskViewer/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Task Viewer
+        UILaunchScreen: {}
+        NSCameraUsageDescription: Take a photo of a pill organizer for analysis.
+        NSPhotoLibraryUsageDescription: Select a pill-organizer photo for analysis.
+        UIBackgroundModes:
+          - remote-notification
+        GEMINI_API_KEY: $(GEMINI_API_KEY)

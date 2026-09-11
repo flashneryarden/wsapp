@@ -85,6 +85,17 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
             defaultVibrateTimings: true,
           },
         },
+        apns: {
+          headers: {
+            "apns-priority": "10",
+          },
+          payload: {
+            aps: {
+              sound: "default",
+              interruptionLevel: "time-sensitive",
+            },
+          },
+        },
       });
 
       const staleDocs = response.responses
@@ -124,6 +135,17 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
             visibility: "public",
             sound: "default",
             defaultVibrateTimings: true,
+          },
+        },
+        apns: {
+          headers: {
+            "apns-priority": "10",
+          },
+          payload: {
+            aps: {
+              sound: "default",
+              interruptionLevel: "time-sensitive",
+            },
           },
         },
       });

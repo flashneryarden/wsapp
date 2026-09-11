@@ -1,0 +1,6 @@
+Local.xcconfig
+TaskViewer/Resources/GoogleService-Info.plist
+*.xcodeproj/
+DerivedData/
+build/
+xcuserdata/
