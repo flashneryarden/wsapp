@@ -1,0 +1,93 @@
+package com.wsapp.taskviewer.logic;
+
+import com.wsapp.taskviewer.model.Task;
+import com.wsapp.taskviewer.util.DueDateFormatter;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public final class TaskFilterSortEngine {
+    public enum Section { URGENT, OPEN, COMPLETED }
+    public enum SortMode { CRITICAL_FIRST, DUE_DATE, NEWEST, GROUP, SENDER, CATEGORY }
+
+    private TaskFilterSortEngine() {
+    }
+
+    public static List<Task> apply(
+            List<Task> source,
+            Section section,
+            SortMode sortMode,
+            String group,
+            String sender,
+            String category) {
+        List<Task> result = new ArrayList<>();
+        if (source == null) return result;
+
+        for (Task task : source) {
+            if (!belongsToSection(task, section)) continue;
+            if (group != null && !group.equals(safe(task.getOrigChatName()))) continue;
+            if (sender != null && !sender.equals(safe(task.getOrigSender()))) continue;
+            if (category != null && !category.equals(task.getEffectiveCategory())) continue;
+            result.add(task);
+        }
+        sort(result, sortMode);
+        return result;
+    }
+
+    private static boolean belongsToSection(Task task, Section section) {
+        if (section == Section.COMPLETED) return task.isDone();
+        if (!task.isPending()) return false;
+        if (section == Section.OPEN) return true;
+
+        LocalDate due = DueDateFormatter.resolve(task.getEffectiveDueDate(), task.getCreatedAt());
+        return task.isEffectivelyCritical()
+                || (due != null && !due.isAfter(LocalDate.now().plusDays(3)));
+    }
+
+    private static void sort(List<Task> tasks, SortMode sortMode) {
+        switch (sortMode) {
+            case DUE_DATE:
+                Collections.sort(tasks, (a, b) -> {
+                    LocalDate first = DueDateFormatter.resolve(a.getEffectiveDueDate(), a.getCreatedAt());
+                    LocalDate second = DueDateFormatter.resolve(b.getEffectiveDueDate(), b.getCreatedAt());
+                    if (first == null && second == null) return Integer.compare(b.getId(), a.getId());
+                    if (first == null) return 1;
+                    if (second == null) return -1;
+                    return first.compareTo(second);
+                });
+                break;
+            case GROUP:
+                Collections.sort(tasks, (a, b) -> compareThenId(
+                        safe(a.getOrigChatName()), safe(b.getOrigChatName()), a, b));
+                break;
+            case SENDER:
+                Collections.sort(tasks, (a, b) -> compareThenId(
+                        safe(a.getOrigSender()), safe(b.getOrigSender()), a, b));
+                break;
+            case CATEGORY:
+                Collections.sort(tasks, (a, b) -> compareThenId(
+                        a.getEffectiveCategory(), b.getEffectiveCategory(), a, b));
+                break;
+            case NEWEST:
+                Collections.sort(tasks, (a, b) -> Integer.compare(b.getId(), a.getId()));
+                break;
+            case CRITICAL_FIRST:
+            default:
+                Collections.sort(tasks, (a, b) -> Integer.compare(b.getId(), a.getId()));
+                Collections.sort(tasks,
+                        (a, b) -> Boolean.compare(b.isEffectivelyCritical(), a.isEffectivelyCritical()));
+                break;
+        }
+    }
+
+    private static int compareThenId(String first, String second, Task a, Task b) {
+        int comparison = first.compareToIgnoreCase(second);
+        return comparison != 0 ? comparison : Integer.compare(b.getId(), a.getId());
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+}

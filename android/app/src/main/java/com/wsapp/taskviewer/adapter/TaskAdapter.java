@@ -20,6 +20,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.time.LocalDate;
 
 public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder> { // Adapts Task objects into reusable RecyclerView cards.
 
@@ -116,7 +117,9 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt()); // Convert the task's due date into display text.
             if (due != null && !due.trim().isEmpty()) { // Check whether the task has a usable due date.
                 dueText.setVisibility(View.VISIBLE); // Make the due-date label visible.
-                dueText.setText("📅 Due: " + due); // Display the formatted due date.
+                LocalDate dueDate = DueDateFormatter.resolve(task.getEffectiveDueDate(), task.getCreatedAt());
+                boolean overdue = task.isPending() && dueDate != null && dueDate.isBefore(LocalDate.now());
+                dueText.setText((overdue ? "⚠ Overdue: " : "📅 Due: ") + due); // Display the formatted due date.
             } else { // Handle tasks without a due date.
                 dueText.setVisibility(View.GONE); // Hide the unused due-date label.
             } // End of the due-date visibility decision.

@@ -57,3 +57,26 @@ src/
 - `auth_info/` contains your WhatsApp session credentials — **do not commit this**
 - This uses an unofficial WhatsApp Web protocol; use responsibly
 - Messages are cached in memory only (not persisted to disk)
+
+## Android task viewer
+
+The `android/` project displays Firestore tasks in three `ViewPager2`/Fragment
+sections:
+
+- **Urgent** — critical, overdue, or due within three days
+- **Open** — all pending tasks
+- **Completed** — finished tasks
+
+Task details support scheduled device reminders. Reminders are persisted in
+Firestore, delivered with `AlarmManager`, reopened directly in the matching task,
+cancelled when a task is completed or deleted, and restored after a device reboot
+or application update.
+
+Build the debug APK with:
+
+```powershell
+cd android
+.\gradlew.bat assembleDebug
+```
+
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.

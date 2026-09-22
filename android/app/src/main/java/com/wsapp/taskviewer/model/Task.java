@@ -20,6 +20,8 @@ public class Task {
     private Boolean critical;
     private String category;
     private String dueDate;
+    private Long reminderAt;
+    private Boolean reminderEnabled;
 
     public Task() {
         actionItems = new ArrayList<>();
@@ -65,6 +67,16 @@ public class Task {
 
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
+
+    public Long getReminderAt() { return reminderAt; }
+    public void setReminderAt(Long reminderAt) { this.reminderAt = reminderAt; }
+
+    public Boolean getReminderEnabled() { return reminderEnabled; }
+    public void setReminderEnabled(Boolean reminderEnabled) { this.reminderEnabled = reminderEnabled; }
+
+    public boolean hasActiveReminder() {
+        return Boolean.TRUE.equals(reminderEnabled) && reminderAt != null;
+    }
 
     /**
      * Category for display/filtering. Uses the stored category when present;

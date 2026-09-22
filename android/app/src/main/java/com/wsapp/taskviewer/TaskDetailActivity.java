@@ -1,6 +1,7 @@
 package com.wsapp.taskviewer;
 
 import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
@@ -18,6 +19,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
 import com.wsapp.taskviewer.model.Task;
+import com.wsapp.taskviewer.reminder.TaskReminderManager;
 import com.wsapp.taskviewer.util.DueDateFormatter;
 
 import java.text.ParseException;
@@ -37,8 +39,10 @@ public class TaskDetailActivity extends AppCompatActivity {
     private TextView actionItemsLabel, notesLabel;
     private TextView completedText;
     private TextView dueText;
+    private TextView reminderText;
     private TextView categoryBadge;
-    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup, btnSetDueDate, btnSetCategory;
+    private MaterialButton btnToggleStatus, btnAddNote, btnDelete, btnSkipGroup;
+    private MaterialButton btnSetDueDate, btnSetCategory, btnSetReminder;
 
     private FirebaseFirestore db;
     private ListenerRegistration listenerRegistration;
@@ -61,6 +65,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         dateText = findViewById(R.id.detailDate);
         completedText = findViewById(R.id.detailCompleted);
         dueText = findViewById(R.id.detailDue);
+        reminderText = findViewById(R.id.detailReminder);
         messageLabel = findViewById(R.id.detailMessageLabel);
         messageText = findViewById(R.id.detailMessage);
         summaryLabel = findViewById(R.id.detailSummaryLabel);
@@ -74,6 +79,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnDelete = findViewById(R.id.btnDelete);
         btnSkipGroup = findViewById(R.id.btnSkipGroup);
         btnSetDueDate = findViewById(R.id.btnSetDueDate);
+        btnSetReminder = findViewById(R.id.btnSetReminder);
         categoryBadge = findViewById(R.id.detailCategoryBadge);
         btnSetCategory = findViewById(R.id.btnSetCategory);
 
@@ -92,6 +98,7 @@ public class TaskDetailActivity extends AppCompatActivity {
         btnDelete.setOnClickListener(v -> confirmDelete());
         btnSkipGroup.setOnClickListener(v -> showSkipGroupDialog());
         btnSetDueDate.setOnClickListener(v -> showDueDatePicker());
+        btnSetReminder.setOnClickListener(v -> showReminderOptions());
         btnSetCategory.setOnClickListener(v -> showCategoryPicker());
 
         loadTask(taskId);
@@ -117,10 +124,19 @@ public class TaskDetailActivity extends AppCompatActivity {
         String docId = String.valueOf(taskId);
 
         if (currentTask.isPending()) {
-            String now = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date());
+            SimpleDateFormat timestamp =
+                    new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+            timestamp.setTimeZone(TimeZone.getTimeZone("UTC"));
+            String now = timestamp.format(new Date());
             db.collection("tasks").document(docId)
-                    .update("status", "done", "completedAt", now)
-                    .addOnSuccessListener(v -> Toast.makeText(this, "Marked done ✅", Toast.LENGTH_SHORT).show())
+                    .update(
+                            "status", "done",
+                            "completedAt", now,
+                            "reminderEnabled", false)
+                    .addOnSuccessListener(v -> {
+                        TaskReminderManager.cancel(this, taskId);
+                        Toast.makeText(this, "Marked done ✅", Toast.LENGTH_SHORT).show();
+                    })
                     .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         } else {
             db.collection("tasks").document(docId)
@@ -159,6 +175,7 @@ public class TaskDetailActivity extends AppCompatActivity {
                     db.collection("tasks").document(String.valueOf(taskId))
                             .delete()
                             .addOnSuccessListener(v -> {
+                                TaskReminderManager.cancel(this, taskId);
                                 Toast.makeText(this, "Task deleted", Toast.LENGTH_SHORT).show();
                                 finish();
                             })
@@ -279,11 +296,133 @@ public class TaskDetailActivity extends AppCompatActivity {
     private void saveDueDate(String value) {
         db.collection("tasks").document(String.valueOf(taskId))
                 .update("dueDate", value)
-                .addOnSuccessListener(v -> Toast.makeText(this,
-                        value != null ? "Due date set: " + value : "Due date cleared",
-                        Toast.LENGTH_SHORT).show())
+                .addOnSuccessListener(v -> {
+                    if (value == null && currentTask != null && currentTask.hasActiveReminder()) {
+                        clearReminder();
+                    } else if (value != null
+                            && currentTask != null
+                            && currentTask.hasActiveReminder()) {
+                        moveReminderToDueDate(value);
+                    }
+                    Toast.makeText(this,
+                            value != null ? "Due date set: " + value : "Due date cleared",
+                            Toast.LENGTH_SHORT).show();
+                })
                 .addOnFailureListener(e -> Toast.makeText(this,
                         "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    private void moveReminderToDueDate(String dueDate) {
+        try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            Date parsed = dateFormat.parse(dueDate);
+            if (parsed == null) return;
+            Calendar newReminder = Calendar.getInstance();
+            newReminder.setTime(parsed);
+            Calendar oldReminder = Calendar.getInstance();
+            oldReminder.setTimeInMillis(currentTask.getReminderAt());
+            newReminder.set(Calendar.HOUR_OF_DAY, oldReminder.get(Calendar.HOUR_OF_DAY));
+            newReminder.set(Calendar.MINUTE, oldReminder.get(Calendar.MINUTE));
+            newReminder.set(Calendar.SECOND, 0);
+            newReminder.set(Calendar.MILLISECOND, 0);
+            if (newReminder.getTimeInMillis() > System.currentTimeMillis()) {
+                saveReminder(newReminder.getTimeInMillis());
+            } else {
+                clearReminder();
+            }
+        } catch (ParseException ignored) {
+        }
+    }
+
+    private void showReminderOptions() {
+        if (currentTask == null) return;
+        if (!currentTask.hasActiveReminder()) {
+            showReminderDatePicker();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Task Reminder")
+                .setItems(new String[]{"Change reminder", "Remove reminder"}, (dialog, which) -> {
+                    if (which == 0) showReminderDatePicker();
+                    else clearReminder();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showReminderDatePicker() {
+        Calendar calendar = Calendar.getInstance();
+        if (currentTask != null && currentTask.getReminderAt() != null) {
+            calendar.setTimeInMillis(currentTask.getReminderAt());
+        } else {
+            calendar.add(Calendar.HOUR_OF_DAY, 1);
+        }
+        DatePickerDialog datePicker = new DatePickerDialog(
+                this,
+                (view, year, month, dayOfMonth) -> showReminderTimePicker(
+                        calendar,
+                        year,
+                        month,
+                        dayOfMonth),
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH));
+        datePicker.getDatePicker().setMinDate(System.currentTimeMillis() - 1000L);
+        datePicker.show();
+    }
+
+    private void showReminderTimePicker(
+            Calendar calendar,
+            int year,
+            int month,
+            int dayOfMonth) {
+        new TimePickerDialog(
+                this,
+                (view, hourOfDay, minute) -> {
+                    calendar.set(Calendar.YEAR, year);
+                    calendar.set(Calendar.MONTH, month);
+                    calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+                    calendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
+                    calendar.set(Calendar.MINUTE, minute);
+                    calendar.set(Calendar.SECOND, 0);
+                    calendar.set(Calendar.MILLISECOND, 0);
+                    saveReminder(calendar.getTimeInMillis());
+                },
+                calendar.get(Calendar.HOUR_OF_DAY),
+                calendar.get(Calendar.MINUTE),
+                android.text.format.DateFormat.is24HourFormat(this))
+                .show();
+    }
+
+    private void saveReminder(long reminderAt) {
+        if (reminderAt <= System.currentTimeMillis()) {
+            Toast.makeText(this, "Choose a future reminder time", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        db.collection("tasks").document(String.valueOf(taskId))
+                .update("reminderAt", reminderAt, "reminderEnabled", true)
+                .addOnSuccessListener(value -> {
+                    String summary = currentTask == null ? "" : currentTask.getSummary();
+                    TaskReminderManager.schedule(this, taskId, reminderAt, summary);
+                    Toast.makeText(this, "Reminder scheduled", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(error -> Toast.makeText(
+                        this,
+                        "Failed: " + error.getMessage(),
+                        Toast.LENGTH_SHORT).show());
+    }
+
+    private void clearReminder() {
+        db.collection("tasks").document(String.valueOf(taskId))
+                .update("reminderAt", null, "reminderEnabled", false)
+                .addOnSuccessListener(value -> {
+                    TaskReminderManager.cancel(this, taskId);
+                    Toast.makeText(this, "Reminder removed", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(error -> Toast.makeText(
+                        this,
+                        "Failed: " + error.getMessage(),
+                        Toast.LENGTH_SHORT).show());
     }
 
     private void showCategoryPicker() {
@@ -333,7 +472,24 @@ public class TaskDetailActivity extends AppCompatActivity {
         }
 
         String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt());
-        dueText.setText((due != null && !due.trim().isEmpty()) ? "📅 Due: " + due : "No due date");
+        java.time.LocalDate dueDate =
+                DueDateFormatter.resolve(task.getEffectiveDueDate(), task.getCreatedAt());
+        boolean overdue = task.isPending()
+                && dueDate != null
+                && dueDate.isBefore(java.time.LocalDate.now());
+        dueText.setText((due != null && !due.trim().isEmpty())
+                ? (overdue ? "⚠ Overdue: " : "📅 Due: ") + due
+                : "No due date");
+
+        if (task.hasActiveReminder()) {
+            SimpleDateFormat reminderFormat =
+                    new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
+            reminderText.setText("⏰ Reminder: " + reminderFormat.format(new Date(task.getReminderAt())));
+            btnSetReminder.setText("Change");
+        } else {
+            reminderText.setText("No reminder");
+            btnSetReminder.setText("Set Reminder");
+        }
 
         String category = task.getEffectiveCategory();
         categoryBadge.setText(com.wsapp.taskviewer.util.Categories.label(category));
