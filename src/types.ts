@@ -29,6 +29,7 @@ export interface WAContactInfo {
 }
 
 export interface Task {
+  firestoreId: string;
   id: number;
   origSender: string;
   origChatName: string;

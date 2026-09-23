@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TaskDetailView: View {
-    let taskID: Int
+    let taskID: String
     @ObservedObject var repository: TaskRepository
     @Environment(\.dismiss) private var dismiss
 
@@ -25,7 +25,7 @@ struct TaskDetailView: View {
                             Text(task.isDone ? "✅" : "⏳")
                                 .font(.largeTitle)
                             VStack(alignment: .leading) {
-                                Text("\(task.isEffectivelyCritical ? "🔴 " : "")Task #\(task.id)")
+                                Text("\(task.isEffectivelyCritical ? "🔴 " : "")Task #\(task.displayID)")
                                     .font(.title2.bold())
                                 Text("Status: \(task.status)")
                                     .foregroundStyle(.secondary)
@@ -110,7 +110,7 @@ struct TaskDetailView: View {
                         }
                     }
                 }
-                .navigationTitle("Task #\(task.id)")
+                .navigationTitle("Task #\(task.displayID)")
                 .navigationBarTitleDisplayMode(.inline)
                 .alert("Add Note", isPresented: $showingNote) {
                     TextField("Note text", text: $noteText)

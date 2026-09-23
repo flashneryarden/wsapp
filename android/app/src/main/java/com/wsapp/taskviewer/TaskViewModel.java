@@ -27,6 +27,10 @@ public final class TaskViewModel extends ViewModel {
         return repository.getError();
     }
 
+    public LiveData<TaskRepository.SyncState> getSyncState() {
+        return repository.getSyncState();
+    }
+
     public LiveData<Integer> getFilterVersion() {
         return filterVersion;
     }

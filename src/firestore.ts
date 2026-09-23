@@ -34,10 +34,15 @@ export function isFirestoreActive(): boolean {
   return db !== null;
 }
 
+function firestoreTaskData(task: Task): Omit<Task, "firestoreId"> {
+  const { firestoreId: _firestoreId, ...data } = task;
+  return data;
+}
+
 export async function syncTaskToFirestore(task: Task): Promise<void> {
   if (!db) return;
   try {
-    await db.collection(COLLECTION).doc(String(task.id)).set(task);
+    await db.collection(COLLECTION).doc(task.firestoreId).set(firestoreTaskData(task));
   } catch (err) {
     console.log(`\x1b[33m⚠ Firestore sync failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
   }
@@ -47,7 +52,7 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
   if (!db) return;
 
   try {
-    await db.collection(COLLECTION).doc(String(task.id)).set(task);
+    await db.collection(COLLECTION).doc(task.firestoreId).set(firestoreTaskData(task));
   } catch (err) {
     console.log(`\x1b[33m⚠ Firestore sync failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
     return;
@@ -72,6 +77,7 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
           body: task.summary || task.text,
         },
         data: {
+          taskDocumentId: task.firestoreId,
           taskId: String(task.id),
           summary: task.summary || task.text,
           source: `${task.origSender} (${task.origChatName})`,
@@ -124,6 +130,7 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
           body: task.summary || task.text,
         },
         data: {
+          taskDocumentId: task.firestoreId,
           taskId: String(task.id),
           summary: task.summary || task.text,
           source: `${task.origSender} (${task.origChatName})`,
@@ -155,12 +162,12 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
   }
 }
 
-export async function deleteTaskFromFirestore(id: number): Promise<void> {
+export async function deleteTaskFromFirestore(task: Task): Promise<void> {
   if (!db) return;
   try {
-    await db.collection(COLLECTION).doc(String(id)).delete();
+    await db.collection(COLLECTION).doc(task.firestoreId).delete();
   } catch (err) {
-    console.log(`\x1b[33m⚠ Firestore delete failed for task #${id}: ${(err as Error).message}\x1b[0m`);
+    console.log(`\x1b[33m⚠ Firestore delete failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
   }
 }
 
@@ -168,7 +175,7 @@ export async function uploadAllTasks(tasks: Task[]): Promise<number> {
   if (!db) return 0;
   const batch = db.batch();
   for (const task of tasks) {
-    batch.set(db.collection(COLLECTION).doc(String(task.id)), task);
+    batch.set(db.collection(COLLECTION).doc(task.firestoreId), firestoreTaskData(task));
   }
   await batch.commit();
   return tasks.length;

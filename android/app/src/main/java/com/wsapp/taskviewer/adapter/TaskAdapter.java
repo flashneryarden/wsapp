@@ -26,6 +26,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
     public interface OnTaskClickListener { // Defines actions that the containing activity must handle.
         void onTaskClick(Task task); // Called when the user taps a task card.
+        void onTaskAlarm(Task task); // Called when the user taps a task card's alarm button.
         void onTaskDelete(Task task); // Called when the user taps a task card's delete button.
     } // End of the task-action listener interface.
 
@@ -70,6 +71,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         private final TextView criticalBadge; // Highlights tasks classified as critical.
         private final TextView categoryBadge; // Shows the task's category and category color.
         private final TextView dueText; // Shows the task's formatted due date.
+        private final ImageButton btnAlarmTask; // Opens alarm setup for this task.
         private final ImageButton btnDeleteTask; // Lets the user request deletion of this task.
 
         TaskViewHolder(@NonNull View itemView) { // Initializes a holder for one inflated item_task.xml card.
@@ -83,6 +85,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             criticalBadge = itemView.findViewById(R.id.criticalBadge); // Find the critical-task badge.
             categoryBadge = itemView.findViewById(R.id.categoryBadge); // Find the category badge.
             dueText = itemView.findViewById(R.id.dueText); // Find the due-date text.
+            btnAlarmTask = itemView.findViewById(R.id.btnAlarmTask); // Find the task's alarm button.
             btnDeleteTask = itemView.findViewById(R.id.btnDeleteTask); // Find the task's delete button.
 
             itemView.setOnClickListener(v -> { // React when the user taps anywhere on the task card.
@@ -98,11 +101,18 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                     listener.onTaskDelete(tasks.get(pos)); // Ask the activity to handle deletion of the selected task.
                 } // End of the valid-position check.
             }); // Finish configuring the delete-button click handler.
+
+            btnAlarmTask.setOnClickListener(v -> {
+                int pos = getAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION && listener != null) {
+                    listener.onTaskAlarm(tasks.get(pos));
+                }
+            });
         } // End of the TaskViewHolder constructor.
 
         void bind(Task task) { // Copies one Task object's values into this card's views.
             statusIcon.setText(task.isDone() ? "✅" : "⏳"); // Show a check mark for done tasks or an hourglass for pending tasks.
-            taskId.setText("#" + task.getId()); // Display the task ID with a leading hash sign.
+            taskId.setText("#" + task.getDisplayId()); // Display the task reference with a leading hash sign.
             summary.setText(task.getSummary()); // Display the task's summary.
             sender.setText(task.getOrigSender() + " (" + task.getOrigChatName() + ")"); // Display who sent the message and in which chat.
             date.setText(formatDate(task.getCreatedAt())); // Convert and display the task's creation timestamp.
@@ -114,11 +124,16 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             categoryBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf( // Create and apply the category badge's background color.
                     com.wsapp.taskviewer.util.Categories.color(category))); // Look up the color assigned to this category.
 
-            String due = DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt()); // Convert the task's due date into display text.
+            String due = task.getDueAt() == null
+                    ? DueDateFormatter.format(task.getEffectiveDueDate(), task.getCreatedAt())
+                    : new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                            .format(new Date(task.getDueAt())); // Convert the task's due date into display text.
             if (due != null && !due.trim().isEmpty()) { // Check whether the task has a usable due date.
                 dueText.setVisibility(View.VISIBLE); // Make the due-date label visible.
                 LocalDate dueDate = DueDateFormatter.resolve(task.getEffectiveDueDate(), task.getCreatedAt());
-                boolean overdue = task.isPending() && dueDate != null && dueDate.isBefore(LocalDate.now());
+                boolean overdue = task.isPending() && (task.getDueAt() != null
+                        ? task.getDueAt() < System.currentTimeMillis()
+                        : dueDate != null && dueDate.isBefore(LocalDate.now()));
                 dueText.setText((overdue ? "⚠ Overdue: " : "📅 Due: ") + due); // Display the formatted due date.
             } else { // Handle tasks without a due date.
                 dueText.setVisibility(View.GONE); // Hide the unused due-date label.

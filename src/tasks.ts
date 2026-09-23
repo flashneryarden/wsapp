@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import type { Task } from "./types.js";
 import type { AnalysisResult } from "./ai.js";
 import { syncTaskToFirestore, publishNewTaskToFirestore, deleteTaskFromFirestore } from "./firestore.js";
@@ -10,7 +11,12 @@ let tasks: Task[] = [];
 
 export function loadTasks(): void {
   try {
-    tasks = JSON.parse(fs.readFileSync(TASKS_PATH, "utf-8"));
+    const loaded = JSON.parse(fs.readFileSync(TASKS_PATH, "utf-8")) as Array<Partial<Task> & Pick<Task, "id">>;
+    tasks = loaded.map((task) => ({
+      ...task,
+      firestoreId: task.firestoreId ?? String(task.id),
+    })) as Task[];
+    saveTasks();
   } catch {
     tasks = [];
   }
@@ -32,6 +38,7 @@ export function addTask(
   text: string,
 ): Task {
   const task: Task = {
+    firestoreId: randomUUID(),
     id: nextId(),
     origSender: sender,
     origChatName: chatName,
@@ -78,19 +85,21 @@ export function completeTask(id: number): Task | null {
 
 export function deleteTasks(ids: number[]): { deleted: number[]; notFound: number[] } {
   const deleted: number[] = [];
+  const deletedTasks: Task[] = [];
   const notFound: number[] = [];
   for (const id of ids) {
     const idx = tasks.findIndex((t) => t.id === id);
     if (idx === -1) {
       notFound.push(id);
     } else {
+      deletedTasks.push(tasks[idx]!);
       tasks.splice(idx, 1);
       deleted.push(id);
     }
   }
   if (deleted.length > 0) {
     saveTasks();
-    for (const id of deleted) deleteTaskFromFirestore(id);
+    for (const task of deletedTasks) deleteTaskFromFirestore(task);
   }
   return { deleted, notFound };
 }
@@ -106,6 +115,7 @@ export function addNote(id: number, note: string): Task | null {
 
 export function addManualTask(text: string): Task {
   const task: Task = {
+    firestoreId: randomUUID(),
     id: nextId(),
     origSender: "manual",
     origChatName: "manual",

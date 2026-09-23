@@ -20,7 +20,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.wsapp.taskviewer.adapter.TaskAdapter;
 import com.wsapp.taskviewer.logic.TaskFilterSortEngine;
 import com.wsapp.taskviewer.model.Task;
-import com.wsapp.taskviewer.reminder.TaskReminderManager;
+import com.wsapp.taskviewer.reminder.TaskAlarmManager;
+import com.wsapp.taskviewer.util.ConnectivityLiveData;
 
 import java.util.List;
 
@@ -70,8 +71,10 @@ public final class TaskListFragment extends Fragment implements TaskAdapter.OnTa
         viewModel.getError().observe(getViewLifecycleOwner(), error -> {
             if (error != null) {
                 swipeRefresh.setRefreshing(false);
-                emptyView.setText("Error loading tasks: " + error);
-                emptyView.setVisibility(View.VISIBLE);
+                if (adapter.getItemCount() == 0) {
+                    emptyView.setText("Unable to load tasks. Pull down to retry.");
+                    emptyView.setVisibility(View.VISIBLE);
+                }
             }
         });
     }
@@ -97,7 +100,15 @@ public final class TaskListFragment extends Fragment implements TaskAdapter.OnTa
     @Override
     public void onTaskClick(Task task) {
         Intent intent = new Intent(requireContext(), TaskDetailActivity.class);
-        intent.putExtra("task_id", task.getId());
+        intent.putExtra("task_document_id", task.getDocumentId());
+        startActivity(intent);
+    }
+
+    @Override
+    public void onTaskAlarm(Task task) {
+        Intent intent = new Intent(requireContext(), TaskDetailActivity.class);
+        intent.putExtra("task_document_id", task.getDocumentId());
+        intent.putExtra("open_alarm", true);
         startActivity(intent);
     }
 
@@ -105,15 +116,17 @@ public final class TaskListFragment extends Fragment implements TaskAdapter.OnTa
     public void onTaskDelete(Task task) {
         new AlertDialog.Builder(requireContext())
                 .setTitle("Delete Task")
-                .setMessage("Delete task #" + task.getId() + "?\n\n" + task.getSummary())
+                .setMessage("Delete task #" + task.getDisplayId() + "?\n\n" + task.getSummary())
                 .setPositiveButton("Delete", (dialog, which) -> {
                     viewModel.getRepository().deleteTask(
                             task,
                             () -> {
-                                TaskReminderManager.cancel(requireContext(), task.getId());
+                                TaskAlarmManager.cancel(requireContext(), task.getDocumentId());
                                 Toast.makeText(
                                         requireContext(),
-                                        "Task deleted",
+                                        ConnectivityLiveData.get(requireContext()).isOnline()
+                                                ? "Task deleted"
+                                                : "Task deleted locally; waiting to sync",
                                         Toast.LENGTH_SHORT).show();
                             },
                             error -> Toast.makeText(

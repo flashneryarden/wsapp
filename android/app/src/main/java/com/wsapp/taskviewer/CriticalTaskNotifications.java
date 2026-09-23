@@ -35,7 +35,7 @@ public final class CriticalTaskNotifications {
         manager.createNotificationChannel(channel);
     }
 
-    public static void show(Context context, int taskId, String summary, String source) {
+    public static void show(Context context, String taskId, String summary, String source) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -45,12 +45,12 @@ public final class CriticalTaskNotifications {
         createChannel(context);
 
         Intent intent = new Intent(context, TaskDetailActivity.class);
-        intent.putExtra("task_id", taskId);
+        intent.putExtra("task_document_id", taskId);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 context,
-                taskId,
+                requestCode(taskId),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
@@ -66,6 +66,10 @@ public final class CriticalTaskNotifications {
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 
-        NotificationManagerCompat.from(context).notify(taskId, notification.build());
+        NotificationManagerCompat.from(context).notify(requestCode(taskId), notification.build());
+    }
+
+    private static int requestCode(String taskId) {
+        return taskId.hashCode() & 0x0fffffff;
     }
 }

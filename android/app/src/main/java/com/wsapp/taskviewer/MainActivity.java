@@ -25,9 +25,11 @@ import com.google.android.material.tabs.TabLayoutMediator;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
+import com.wsapp.taskviewer.data.TaskRepository;
 import com.wsapp.taskviewer.logic.TaskFilterSortEngine;
 import com.wsapp.taskviewer.model.Task;
-import com.wsapp.taskviewer.reminder.TaskReminderManager;
+import com.wsapp.taskviewer.reminder.TaskAlarmManager;
+import com.wsapp.taskviewer.util.ConnectivityLiveData;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -42,6 +44,9 @@ public class MainActivity extends AppCompatActivity {
 
     private TaskViewModel viewModel;
     private TextView filterBanner;
+    private TextView syncStatusBanner;
+    private boolean online;
+    private TaskRepository.SyncState syncState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,11 +56,21 @@ public class MainActivity extends AppCompatActivity {
 
         viewModel = new ViewModelProvider(this).get(TaskViewModel.class);
         filterBanner = findViewById(R.id.filterBanner);
+        syncStatusBanner = findViewById(R.id.syncStatusBanner);
+        syncStatusBanner.setOnClickListener(view -> viewModel.getRepository().listen());
         filterBanner.setOnClickListener(view -> {
             viewModel.clearFilters();
             Toast.makeText(this, "Filters cleared", Toast.LENGTH_SHORT).show();
         });
         viewModel.getFilterVersion().observe(this, ignored -> updateFilterBanner());
+        viewModel.getSyncState().observe(this, state -> {
+            syncState = state;
+            updateSyncStatus();
+        });
+        ConnectivityLiveData.get(this).observe(this, isOnline -> {
+            online = Boolean.TRUE.equals(isOnline);
+            updateSyncStatus();
+        });
 
         ViewPager2 pager = findViewById(R.id.taskPager);
         pager.setAdapter(new TaskPagerAdapter(this));
@@ -84,15 +99,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void openTaskFromNotification(Intent intent) {
         if (intent == null) return;
-        String taskIdValue = intent.getStringExtra("taskId");
-        if (taskIdValue == null) return;
+        String documentId = intent.getStringExtra("taskDocumentId");
+        if (documentId == null) documentId = intent.getStringExtra("task_document_id");
+        if (documentId == null) documentId = intent.getStringExtra("taskId");
+        if (documentId == null) return;
+        intent.removeExtra("task_document_id");
         intent.removeExtra("taskId");
-        try {
-            Intent detailIntent = new Intent(this, TaskDetailActivity.class);
-            detailIntent.putExtra("task_id", Integer.parseInt(taskIdValue));
-            startActivity(detailIntent);
-        } catch (NumberFormatException ignored) {
-        }
+        intent.removeExtra("taskDocumentId");
+        Intent detailIntent = new Intent(this, TaskDetailActivity.class);
+        detailIntent.putExtra("task_document_id", documentId);
+        startActivity(detailIntent);
     }
 
     private void requestNotificationPermission() {
@@ -118,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
                     if (text.isEmpty()) return;
                     viewModel.getRepository().createTask(
                             text,
-                            () -> Toast.makeText(this, "Task created", Toast.LENGTH_SHORT).show(),
+                            () -> showWriteSuccess("Task created"),
                             error -> Toast.makeText(
                                     this,
                                     "Failed: " + error.getMessage(),
@@ -191,6 +207,40 @@ public class MainActivity extends AppCompatActivity {
         filterBanner.setVisibility(View.VISIBLE);
     }
 
+    private void updateSyncStatus() {
+        if (!online) {
+            syncStatusBanner.setText(
+                    "Offline — showing cached tasks. Changes will sync when connected.");
+            syncStatusBanner.setBackgroundColor(0xFFFFF3E0);
+            syncStatusBanner.setTextColor(0xFFE65100);
+            syncStatusBanner.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (syncState == null) {
+            syncStatusBanner.setText("Connecting to Firestore…");
+            syncStatusBanner.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (syncState.error != null) {
+            syncStatusBanner.setText("Sync failed — tap to retry: " + syncState.error);
+            syncStatusBanner.setBackgroundColor(0xFFFFEBEE);
+            syncStatusBanner.setTextColor(0xFFC62828);
+            syncStatusBanner.setVisibility(View.VISIBLE);
+        } else if (syncState.hasPendingWrites) {
+            syncStatusBanner.setText("Syncing local changes…");
+            syncStatusBanner.setBackgroundColor(0xFFE3F2FD);
+            syncStatusBanner.setTextColor(0xFF1565C0);
+            syncStatusBanner.setVisibility(View.VISIBLE);
+        } else if (syncState.fromCache) {
+            syncStatusBanner.setText("Showing cached tasks while connecting…");
+            syncStatusBanner.setBackgroundColor(0xFFFFF3E0);
+            syncStatusBanner.setTextColor(0xFFE65100);
+            syncStatusBanner.setVisibility(View.VISIBLE);
+        } else {
+            syncStatusBanner.setVisibility(View.GONE);
+        }
+    }
+
     private void showCategoryFilterDialog() {
         String[] keys = com.wsapp.taskviewer.util.Categories.KEYS;
         List<String> values = new ArrayList<>();
@@ -243,16 +293,13 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("Delete All Tasks")
                 .setMessage("Are you sure you want to delete ALL tasks? This cannot be undone.")
                 .setPositiveButton("Delete All", (dialog, which) -> {
-                    List<Integer> taskIds = knownTaskIds();
+                    List<String> taskIds = knownTaskIds();
                     viewModel.getRepository().deleteAll(
                             () -> {
-                                for (int taskId : taskIds) {
-                                    TaskReminderManager.cancel(this, taskId);
+                                for (String taskId : taskIds) {
+                                    TaskAlarmManager.cancel(this, taskId);
                                 }
-                                Toast.makeText(
-                                        this,
-                                        "All tasks deleted",
-                                        Toast.LENGTH_SHORT).show();
+                                showWriteSuccess("All tasks deleted");
                             },
                             error -> Toast.makeText(
                                     this,
@@ -263,11 +310,11 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    private List<Integer> knownTaskIds() {
-        List<Integer> ids = new ArrayList<>();
+    private List<String> knownTaskIds() {
+        List<String> ids = new ArrayList<>();
         List<Task> tasks = viewModel.getTasks().getValue();
         if (tasks == null) return ids;
-        for (Task task : tasks) ids.add(task.getId());
+        for (Task task : tasks) ids.add(task.getDocumentId());
         return ids;
     }
 
@@ -288,13 +335,12 @@ public class MainActivity extends AppCompatActivity {
         viewModel.getRepository().getDatabase().collection("tasks").get()
                 .addOnSuccessListener(snapshots -> {
                     List<DocumentReference> references = new ArrayList<>();
-                    List<Integer> taskIds = new ArrayList<>();
+                    List<String> taskIds = new ArrayList<>();
                     for (QueryDocumentSnapshot document : snapshots) {
                         Date created = parseCreatedAt(document.getString("createdAt"));
                         if (created != null && created.getTime() < cutoff) {
                             references.add(document.getReference());
-                            Long id = document.getLong("id");
-                            if (id != null) taskIds.add(id.intValue());
+                            taskIds.add(document.getId());
                         }
                     }
                     if (references.isEmpty()) {
@@ -316,8 +362,8 @@ public class MainActivity extends AppCompatActivity {
                         Toast.LENGTH_SHORT).show());
     }
 
-    private void deleteOldTasks(List<DocumentReference> references, List<Integer> taskIds) {
-        for (int taskId : taskIds) TaskReminderManager.cancel(this, taskId);
+    private void deleteOldTasks(List<DocumentReference> references, List<String> taskIds) {
+        for (String taskId : taskIds) TaskAlarmManager.cancel(this, taskId);
         int chunkSize = 500;
         int[] remaining = {(references.size() + chunkSize - 1) / chunkSize};
         boolean[] failed = {false};
@@ -329,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
                     .addOnSuccessListener(value -> {
                         remaining[0]--;
                         if (remaining[0] == 0 && !failed[0]) {
-                            Toast.makeText(this, "Old tasks deleted", Toast.LENGTH_SHORT).show();
+                            showWriteSuccess("Old tasks deleted");
                         }
                     })
                     .addOnFailureListener(error -> {
@@ -354,5 +400,12 @@ public class MainActivity extends AppCompatActivity {
         } catch (java.text.ParseException ignored) {
             return null;
         }
+    }
+
+    private void showWriteSuccess(String message) {
+        Toast.makeText(
+                this,
+                online ? message : message + " locally; waiting to sync",
+                Toast.LENGTH_SHORT).show();
     }
 }

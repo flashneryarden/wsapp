@@ -119,6 +119,17 @@
         </LinearLayout>
 
         <ImageButton
+            android:id="@+id/btnAlarmTask"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Set task alarm"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_lock_idle_alarm"
+            app:tint="#E65100" />
+
+        <ImageButton
             android:id="@+id/btnDeleteTask"
             android:layout_width="40dp"
             android:layout_height="40dp"

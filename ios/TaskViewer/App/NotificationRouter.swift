@@ -5,7 +5,7 @@ import Foundation
 final class NotificationRouter: ObservableObject {
     static let shared = NotificationRouter()
 
-    @Published var taskID: Int?
+    @Published var taskID: String?
 
     private init() {
     }

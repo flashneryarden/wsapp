@@ -67,10 +67,28 @@ sections:
 - **Open** — all pending tasks
 - **Completed** — finished tasks
 
-Task details support scheduled device reminders. Reminders are persisted in
-Firestore, delivered with `AlarmManager`, reopened directly in the matching task,
-cancelled when a task is completed or deleted, and restored after a device reboot
-or application update.
+Task details support an exact due date and time plus a locally managed ringing
+alarm. The user can schedule the alarm for 5 minutes, 1 hour, or 1 day before the
+due time. Alarm selections are stored only on the phone that created them. Alarms
+use `AlarmManager`, open a full-screen alarm UI, play the phone's alarm sound until
+dismissed, reopen the matching task, cancel when the task is completed or deleted,
+and restore after a device reboot or application update.
+
+On recent Android versions, the first alarm setup may open system settings to
+grant **Alarms & reminders** and **Full-screen alerts** access. After granting an
+access request, return to the task and press **Set Alarm** again.
+
+The task screens continue showing Firestore's cached data while offline. Status
+banners distinguish cached data, locally pending writes, synchronization, and
+sync failures; failed listeners can be retried by tapping the banner. AI image
+analysis is disabled while offline and displays explicit configuration, HTTP,
+empty-response, and malformed-response errors.
+
+Firestore document IDs are the authoritative task identity. New Android, iOS,
+and CLI tasks use generated document IDs, while legacy numeric document IDs
+remain supported. Numeric task numbers are retained only as display/CLI
+references; database operations, notification links, and local alarms use the
+full document ID.
 
 Build the debug APK with:
 

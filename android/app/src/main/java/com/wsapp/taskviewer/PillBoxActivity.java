@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import com.google.android.material.button.MaterialButton;
+import com.wsapp.taskviewer.util.ConnectivityLiveData;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -48,6 +49,7 @@ public class PillBoxActivity extends AppCompatActivity {
 
     private Uri photoUri;
     private Bitmap selectedBitmap;
+    private boolean online;
 
     private final ActivityResultLauncher<Uri> cameraLauncher =
             registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
@@ -92,6 +94,15 @@ public class PillBoxActivity extends AppCompatActivity {
         btnCamera = findViewById(R.id.btnCamera);
         btnGallery = findViewById(R.id.btnGallery);
         btnAnalyze = findViewById(R.id.btnAnalyze);
+        ConnectivityLiveData.get(this).observe(this, isOnline -> {
+            online = Boolean.TRUE.equals(isOnline);
+            btnAnalyze.setEnabled(selectedBitmap != null && online);
+            if (!online && selectedBitmap != null) {
+                resultsCard.setVisibility(View.VISIBLE);
+                resultsTitle.setText("Offline");
+                resultsText.setText("Reconnect to the internet before analyzing this image.");
+            }
+        });
 
         btnCamera.setOnClickListener(v -> checkCameraPermission());
         btnGallery.setOnClickListener(v -> galleryLauncher.launch("image/*"));
@@ -119,10 +130,13 @@ public class PillBoxActivity extends AppCompatActivity {
             InputStream is = getContentResolver().openInputStream(uri);
             selectedBitmap = BitmapFactory.decodeStream(is);
             if (is != null) is.close();
+            if (selectedBitmap == null) {
+                throw new IOException("The selected file is not a readable image");
+            }
 
             imagePreview.setImageBitmap(selectedBitmap);
             imagePlaceholder.setVisibility(View.GONE);
-            btnAnalyze.setEnabled(true);
+            btnAnalyze.setEnabled(online);
             resultsCard.setVisibility(View.GONE);
         } catch (IOException e) {
             Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
@@ -146,6 +160,12 @@ public class PillBoxActivity extends AppCompatActivity {
 
     private void analyzeImage() {
         if (selectedBitmap == null) return;
+        if (!online) {
+            resultsCard.setVisibility(View.VISIBLE);
+            resultsTitle.setText("Offline");
+            resultsText.setText("Reconnect to the internet before analyzing this image.");
+            return;
+        }
 
         btnAnalyze.setEnabled(false);
         progressBar.setVisibility(View.VISIBLE);
@@ -159,8 +179,12 @@ public class PillBoxActivity extends AppCompatActivity {
                 runOnUiThread(() -> showResults(result));
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "Analysis failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    btnAnalyze.setEnabled(true);
+                    resultsCard.setVisibility(View.VISIBLE);
+                    resultsTitle.setText("Analysis failed");
+                    resultsText.setText(e.getMessage() == null
+                            ? "The AI service returned an unknown error."
+                            : e.getMessage());
+                    btnAnalyze.setEnabled(selectedBitmap != null && online);
                     progressBar.setVisibility(View.GONE);
                 });
             }
@@ -175,6 +199,10 @@ public class PillBoxActivity extends AppCompatActivity {
 
     private String callGeminiApi(String base64Image) throws Exception {
         String apiKey = BuildConfig.GEMINI_API_KEY;
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            throw new IllegalStateException(
+                    "Gemini is not configured on this build. Add the API key or use the server API.");
+        }
 
         String prompt = "This is a round pill organizer with 7 compartments in a circle. "
                 + "Look carefully at each individual compartment. "
@@ -223,7 +251,12 @@ public class PillBoxActivity extends AppCompatActivity {
                     }
 
                     int responseCode = conn.getResponseCode();
-                    InputStream is = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                    InputStream is = responseCode >= 400
+                            ? conn.getErrorStream()
+                            : conn.getInputStream();
+                    if (is == null) {
+                        throw new IOException("The AI service returned an empty HTTP response.");
+                    }
                     BufferedReader reader = new BufferedReader(new InputStreamReader(is));
                     StringBuilder response = new StringBuilder();
                     String line;
@@ -244,15 +277,24 @@ public class PillBoxActivity extends AppCompatActivity {
                     }
 
                     JSONObject json = new JSONObject(response.toString());
-                    return json.getJSONArray("candidates")
+                    if (!json.has("candidates") || json.getJSONArray("candidates").length() == 0) {
+                        throw new IOException("The AI service returned no analysis result.");
+                    }
+                    String text = json.getJSONArray("candidates")
                             .getJSONObject(0)
                             .getJSONObject("content")
                             .getJSONArray("parts")
                             .getJSONObject(0)
                             .getString("text");
+                    if (text == null || text.trim().isEmpty()) {
+                        throw new IOException("The AI service returned an empty analysis.");
+                    }
+                    return text;
                 } catch (IOException e) {
                     lastError = e;
                     Thread.sleep(2000);
+                } catch (org.json.JSONException e) {
+                    throw new IOException("The AI service returned an unexpected response format.", e);
                 }
             }
         }

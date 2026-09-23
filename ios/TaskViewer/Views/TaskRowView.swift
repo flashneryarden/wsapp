@@ -7,7 +7,7 @@ struct TaskRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(task.isDone ? "✅" : "⏳")
-                Text("#\(task.id)")
+                Text("#\(task.displayID)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if task.isEffectivelyCritical {

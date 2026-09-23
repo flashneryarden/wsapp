@@ -6,7 +6,7 @@ import androidx.lifecycle.MutableLiveData;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.MetadataChanges;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
 import com.wsapp.taskviewer.model.Task;
@@ -23,6 +23,8 @@ public final class TaskRepository {
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
     private final MutableLiveData<List<Task>> tasks = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<String> error = new MutableLiveData<>();
+    private final MutableLiveData<SyncState> syncState =
+            new MutableLiveData<>(new SyncState(true, false, null));
     private ListenerRegistration listenerRegistration;
 
     public TaskRepository() {
@@ -37,61 +39,61 @@ public final class TaskRepository {
         return error;
     }
 
+    public LiveData<SyncState> getSyncState() {
+        return syncState;
+    }
+
     public void listen() {
         if (listenerRegistration != null) listenerRegistration.remove();
         listenerRegistration = db.collection("tasks")
-                .orderBy("id", Query.Direction.DESCENDING)
-                .addSnapshotListener((snapshots, failure) -> {
+                .addSnapshotListener(MetadataChanges.INCLUDE, (snapshots, failure) -> {
                     if (failure != null) {
                         error.setValue(failure.getMessage());
+                        SyncState previous = syncState.getValue();
+                        syncState.setValue(new SyncState(
+                                previous == null || previous.fromCache,
+                                previous != null && previous.hasPendingWrites,
+                                failure.getMessage()));
                         return;
                     }
                     if (snapshots == null) return;
                     List<Task> loaded = new ArrayList<>();
                     for (QueryDocumentSnapshot document : snapshots) {
-                        loaded.add(document.toObject(Task.class));
+                        Task task = document.toObject(Task.class);
+                        task.setDocumentId(document.getId());
+                        loaded.add(task);
                     }
                     tasks.setValue(loaded);
                     error.setValue(null);
+                    syncState.setValue(new SyncState(
+                            snapshots.getMetadata().isFromCache(),
+                            snapshots.getMetadata().hasPendingWrites(),
+                            null));
                 });
     }
 
     public void createTask(String text, Runnable onSuccess, ErrorCallback onFailure) {
-        db.collection("tasks")
-                .orderBy("id", Query.Direction.DESCENDING)
-                .limit(1)
-                .get()
-                .addOnSuccessListener(snapshots -> {
-                    int nextId = 1;
-                    for (QueryDocumentSnapshot document : snapshots) {
-                        nextId = document.toObject(Task.class).getId() + 1;
-                    }
-                    Map<String, Object> task = new HashMap<>();
-                    task.put("id", nextId);
-                    task.put("origSender", "android");
-                    task.put("origChatName", "android");
-                    task.put("text", text);
-                    task.put("summary", text);
-                    task.put("actionItems", new ArrayList<>());
-                    java.text.SimpleDateFormat timestamp =
-                            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-                    timestamp.setTimeZone(TimeZone.getTimeZone("UTC"));
-                    task.put("createdAt", timestamp.format(new Date()));
-                    task.put("status", "pending");
-                    task.put("completedAt", null);
-                    task.put("notes", new ArrayList<>());
-                    task.put("reminderEnabled", false);
-                    int taskId = nextId;
-                    db.collection("tasks").document(String.valueOf(taskId))
-                            .set(task)
-                            .addOnSuccessListener(value -> onSuccess.run())
-                            .addOnFailureListener(onFailure::onError);
-                })
+        DocumentReference reference = db.collection("tasks").document();
+        Map<String, Object> task = new HashMap<>();
+        task.put("origSender", "android");
+        task.put("origChatName", "android");
+        task.put("text", text);
+        task.put("summary", text);
+        task.put("actionItems", new ArrayList<>());
+        java.text.SimpleDateFormat timestamp =
+                new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        timestamp.setTimeZone(TimeZone.getTimeZone("UTC"));
+        task.put("createdAt", timestamp.format(new Date()));
+        task.put("status", "pending");
+        task.put("completedAt", null);
+        task.put("notes", new ArrayList<>());
+        reference.set(task)
+                .addOnSuccessListener(value -> onSuccess.run())
                 .addOnFailureListener(onFailure::onError);
     }
 
     public void deleteTask(Task task, Runnable onSuccess, ErrorCallback onFailure) {
-        db.collection("tasks").document(String.valueOf(task.getId()))
+        db.collection("tasks").document(task.getDocumentId())
                 .delete()
                 .addOnSuccessListener(value -> onSuccess.run())
                 .addOnFailureListener(onFailure::onError);
@@ -146,5 +148,17 @@ public final class TaskRepository {
 
     public interface ErrorCallback {
         void onError(Exception error);
+    }
+
+    public static final class SyncState {
+        public final boolean fromCache;
+        public final boolean hasPendingWrites;
+        public final String error;
+
+        public SyncState(boolean fromCache, boolean hasPendingWrites, String error) {
+            this.fromCache = fromCache;
+            this.hasPendingWrites = hasPendingWrites;
+            this.error = error;
+        }
     }
 }

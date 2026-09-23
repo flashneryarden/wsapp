@@ -2,9 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -33,6 +39,15 @@
             android:name=".PillBoxActivity"
             android:parentActivityName=".MainActivity" />
 
+        <activity
+            android:name=".reminder.TaskAlarmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"
+            android:turnScreenOn="true" />
+
         <service
             android:name=".CriticalTaskMessagingService"
             android:exported="false">
@@ -41,8 +56,13 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".reminder.TaskAlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <receiver
-            android:name=".reminder.TaskReminderReceiver"
+            android:name=".reminder.TaskAlarmReceiver"
             android:exported="false" />
 
         <receiver

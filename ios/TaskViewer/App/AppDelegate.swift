@@ -78,19 +78,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let value = response.notification.request.content.userInfo["taskId"]
-        guard let taskID = Self.intValue(value) else { return }
+        let userInfo = response.notification.request.content.userInfo
+        let value = userInfo["taskDocumentId"] ?? userInfo["taskId"]
+        guard let taskID = Self.stringValue(value) else { return }
         await MainActor.run {
             NotificationRouter.shared.taskID = taskID
         }
     }
 
-    private static func intValue(_ value: Any?) -> Int? {
-        if let value = value as? Int {
+    private static func stringValue(_ value: Any?) -> String? {
+        if let value = value as? String {
             return value
         }
-        if let value = value as? String {
-            return Int(value)
+        if let value = value as? Int {
+            return String(value)
         }
         return nil
     }

@@ -21,7 +21,6 @@ final class TaskRepository: ObservableObject {
     func startListening() {
         listener?.remove()
         listener = db.collection("tasks")
-            .order(by: "id", descending: true)
             .addSnapshotListener { [weak self] snapshot, error in
                 Task { @MainActor in
                     guard let self else { return }
@@ -29,21 +28,15 @@ final class TaskRepository: ObservableObject {
                         self.errorMessage = "Error loading tasks: \(error.localizedDescription)"
                         return
                     }
-                    self.tasks = snapshot?.documents.compactMap { TaskItem(document: $0) } ?? []
+                    self.tasks = (snapshot?.documents.compactMap { TaskItem(document: $0) } ?? [])
+                        .sorted { ($0.createdDate ?? .distantPast) > ($1.createdDate ?? .distantPast) }
                 }
             }
     }
 
     func createTask(text: String) async {
         do {
-            let snapshot = try await db.collection("tasks")
-                .order(by: "id", descending: true)
-                .limit(to: 1)
-                .getDocuments()
-            let lastID = snapshot.documents.first.flatMap { TaskItem(document: $0) }?.id ?? 0
-            let nextID = lastID + 1
-            try await db.collection("tasks").document(String(nextID)).setData([
-                "id": nextID,
+            try await db.collection("tasks").addDocument(data: [
                 "origSender": "ios",
                 "origChatName": "ios",
                 "text": text,
@@ -76,11 +69,11 @@ final class TaskRepository: ObservableObject {
         ])
     }
 
-    func addNote(_ note: String, to taskID: Int) async {
+    func addNote(_ note: String, to taskID: String) async {
         await updateTask(taskID, fields: ["notes": FieldValue.arrayUnion([note])])
     }
 
-    func setDueDate(_ date: Date?, for taskID: Int) async {
+    func setDueDate(_ date: Date?, for taskID: String) async {
         let value: Any
         if let date {
             let formatter = DateFormatter()
@@ -93,13 +86,13 @@ final class TaskRepository: ObservableObject {
         await updateTask(taskID, fields: ["dueDate": value])
     }
 
-    func setCategory(_ category: TaskCategory, for taskID: Int) async {
+    func setCategory(_ category: TaskCategory, for taskID: String) async {
         await updateTask(taskID, fields: ["category": category.rawValue])
     }
 
-    func deleteTask(_ taskID: Int) async {
+    func deleteTask(_ taskID: String) async {
         do {
-            try await db.collection("tasks").document(String(taskID)).delete()
+            try await db.collection("tasks").document(taskID).delete()
         } catch {
             errorMessage = "Failed to delete task: \(error.localizedDescription)"
         }
@@ -149,9 +142,9 @@ final class TaskRepository: ObservableObject {
         }
     }
 
-    private func updateTask(_ taskID: Int, fields: [AnyHashable: Any]) async {
+    private func updateTask(_ taskID: String, fields: [AnyHashable: Any]) async {
         do {
-            try await db.collection("tasks").document(String(taskID)).updateData(fields)
+            try await db.collection("tasks").document(taskID).updateData(fields)
         } catch {
             errorMessage = "Failed to update task: \(error.localizedDescription)"
         }

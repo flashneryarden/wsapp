@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.time.Instant;
 
 public final class TaskFilterSortEngine {
     public enum Section { URGENT, OPEN, COMPLETED }
@@ -52,7 +53,7 @@ public final class TaskFilterSortEngine {
                 Collections.sort(tasks, (a, b) -> {
                     LocalDate first = DueDateFormatter.resolve(a.getEffectiveDueDate(), a.getCreatedAt());
                     LocalDate second = DueDateFormatter.resolve(b.getEffectiveDueDate(), b.getCreatedAt());
-                    if (first == null && second == null) return Integer.compare(b.getId(), a.getId());
+                    if (first == null && second == null) return compareNewest(a, b);
                     if (first == null) return 1;
                     if (second == null) return -1;
                     return first.compareTo(second);
@@ -71,11 +72,11 @@ public final class TaskFilterSortEngine {
                         a.getEffectiveCategory(), b.getEffectiveCategory(), a, b));
                 break;
             case NEWEST:
-                Collections.sort(tasks, (a, b) -> Integer.compare(b.getId(), a.getId()));
+                Collections.sort(tasks, TaskFilterSortEngine::compareNewest);
                 break;
             case CRITICAL_FIRST:
             default:
-                Collections.sort(tasks, (a, b) -> Integer.compare(b.getId(), a.getId()));
+                Collections.sort(tasks, TaskFilterSortEngine::compareNewest);
                 Collections.sort(tasks,
                         (a, b) -> Boolean.compare(b.isEffectivelyCritical(), a.isEffectivelyCritical()));
                 break;
@@ -84,7 +85,23 @@ public final class TaskFilterSortEngine {
 
     private static int compareThenId(String first, String second, Task a, Task b) {
         int comparison = first.compareToIgnoreCase(second);
-        return comparison != 0 ? comparison : Integer.compare(b.getId(), a.getId());
+        return comparison != 0 ? comparison : compareNewest(a, b);
+    }
+
+    private static int compareNewest(Task first, Task second) {
+        Instant firstTime = parseInstant(first.getCreatedAt());
+        Instant secondTime = parseInstant(second.getCreatedAt());
+        int comparison = secondTime.compareTo(firstTime);
+        if (comparison != 0) return comparison;
+        return safe(second.getDocumentId()).compareTo(safe(first.getDocumentId()));
+    }
+
+    private static Instant parseInstant(String value) {
+        try {
+            return value == null ? Instant.EPOCH : Instant.parse(value);
+        } catch (java.time.format.DateTimeParseException ignored) {
+            return Instant.EPOCH;
+        }
     }
 
     private static String safe(String value) {

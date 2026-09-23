@@ -2,7 +2,8 @@ import FirebaseFirestore
 import Foundation
 
 struct TaskItem: Identifiable, Hashable {
-    let id: Int
+    let id: String
+    let numericID: Int?
     var origSender: String
     var origChatName: String
     var text: String
@@ -26,12 +27,10 @@ struct TaskItem: Identifiable, Hashable {
     }
 
     init?(documentID: String, data: [String: Any]) {
-        let numericID = (data["id"] as? Int)
+        numericID = (data["id"] as? Int)
             ?? (data["id"] as? NSNumber)?.intValue
             ?? Int(documentID)
-        guard let numericID else { return nil }
-
-        id = numericID
+        id = documentID
         origSender = (data["origSender"] as? String) ?? ""
         origChatName = (data["origChatName"] as? String) ?? ""
         let messageText = (data["text"] as? String) ?? ""
@@ -49,6 +48,12 @@ struct TaskItem: Identifiable, Hashable {
 
     var isPending: Bool { status == "pending" }
     var isDone: Bool { status == "done" }
+    var displayID: String {
+        if let numericID, id == String(numericID) {
+            return String(numericID)
+        }
+        return String(id.prefix(6)).uppercased()
+    }
 
     var effectiveCategory: TaskCategory {
         TaskCategory.effective(

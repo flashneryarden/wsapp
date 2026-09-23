@@ -14,7 +14,7 @@ struct TaskListView: View {
 
     @StateObject private var repository = TaskRepository()
     @EnvironmentObject private var notificationRouter: NotificationRouter
-    @State private var path: [Int] = []
+    @State private var path: [String] = []
     @State private var statusFilter: String?
     @State private var groupFilter: String?
     @State private var senderFilter: String?
@@ -77,7 +77,7 @@ struct TaskListView: View {
                 }
             }
             .navigationTitle("Tasks")
-            .navigationDestination(for: Int.self) { taskID in
+            .navigationDestination(for: String.self) { taskID in
                 TaskDetailView(taskID: taskID, repository: repository)
             }
             .toolbar {
@@ -186,7 +186,7 @@ struct TaskListView: View {
                 if $0.isEffectivelyCritical != $1.isEffectivelyCritical {
                     return $0.isEffectivelyCritical
                 }
-                return $0.id > $1.id
+                return newestFirst($0, $1)
             }
         case .dueDate:
             result.sort {
@@ -194,11 +194,11 @@ struct TaskListView: View {
                 case let (left?, right?): return left < right
                 case (_?, nil): return true
                 case (nil, _?): return false
-                case (nil, nil): return $0.id > $1.id
+                case (nil, nil): return newestFirst($0, $1)
                 }
             }
         case .newest:
-            result.sort { $0.id > $1.id }
+            result.sort(by: newestFirst)
         case .group:
             result.sort {
                 $0.origChatName.localizedCaseInsensitiveCompare($1.origChatName) == .orderedAscending
@@ -211,6 +211,12 @@ struct TaskListView: View {
             result.sort { $0.effectiveCategory.label < $1.effectiveCategory.label }
         }
         return result
+    }
+
+    private func newestFirst(_ left: TaskItem, _ right: TaskItem) -> Bool {
+        let leftDate = left.createdDate ?? .distantPast
+        let rightDate = right.createdDate ?? .distantPast
+        return leftDate == rightDate ? left.id > right.id : leftDate > rightDate
     }
 
     private var groups: [String] {

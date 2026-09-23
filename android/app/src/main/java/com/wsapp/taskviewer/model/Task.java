@@ -7,6 +7,7 @@ import java.util.List;
  * Task model matching the Firestore document schema.
  */
 public class Task {
+    private String documentId;
     private int id;
     private String origSender;
     private String origChatName;
@@ -20,8 +21,7 @@ public class Task {
     private Boolean critical;
     private String category;
     private String dueDate;
-    private Long reminderAt;
-    private Boolean reminderEnabled;
+    private Long dueAt;
 
     public Task() {
         actionItems = new ArrayList<>();
@@ -30,6 +30,16 @@ public class Task {
 
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
+
+    public String getDocumentId() { return documentId; }
+    public void setDocumentId(String documentId) { this.documentId = documentId; }
+
+    public String getDisplayId() {
+        if (documentId == null || documentId.isEmpty() || documentId.equals(String.valueOf(id))) {
+            return String.valueOf(id);
+        }
+        return documentId.substring(0, Math.min(6, documentId.length())).toUpperCase(java.util.Locale.ROOT);
+    }
 
     public String getOrigSender() { return origSender; }
     public void setOrigSender(String origSender) { this.origSender = origSender; }
@@ -68,15 +78,8 @@ public class Task {
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
 
-    public Long getReminderAt() { return reminderAt; }
-    public void setReminderAt(Long reminderAt) { this.reminderAt = reminderAt; }
-
-    public Boolean getReminderEnabled() { return reminderEnabled; }
-    public void setReminderEnabled(Boolean reminderEnabled) { this.reminderEnabled = reminderEnabled; }
-
-    public boolean hasActiveReminder() {
-        return Boolean.TRUE.equals(reminderEnabled) && reminderAt != null;
-    }
+    public Long getDueAt() { return dueAt; }
+    public void setDueAt(Long dueAt) { this.dueAt = dueAt; }
 
     /**
      * Category for display/filtering. Uses the stored category when present;
