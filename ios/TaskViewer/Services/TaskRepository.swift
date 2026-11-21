@@ -1,5 +1,6 @@
 import Combine
 import FirebaseFirestore
+import FirebaseMessaging
 import Foundation
 
 @MainActor
@@ -126,11 +127,33 @@ final class TaskRepository: ObservableObject {
                 .whereField("name", isEqualTo: group)
                 .limit(to: 1)
                 .getDocuments()
-            if existing.documents.isEmpty {
-                _ = try await db.collection("skippedGroups").addDocument(data: [
+            let groupID: String
+            if let document = existing.documents.first {
+                groupID = document.documentID
+            } else {
+                let reference = try await db.collection("skippedGroups").addDocument(data: [
                     "name": group,
                     "skippedAt": Self.nowISO(),
                 ])
+                groupID = reference.documentID
+            }
+            do {
+                let token = try await Messaging.messaging().token()
+                guard !token.isEmpty else {
+                    throw NSError(
+                        domain: "TaskRepository",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to obtain FCM token for group preference"]
+                    )
+                }
+                try await db.collection("devices").document(token.sha256).setData([
+                    "token": token,
+                    "platform": "ios",
+                    "updatedAt": FieldValue.serverTimestamp(),
+                    "skippedGroupIds": FieldValue.arrayUnion([groupID]),
+                ], merge: true)
+            } catch {
+                errorMessage = "Group skipped globally, but saving this device's preference failed: \(error.localizedDescription)"
             }
             if deleteExisting {
                 await deleteDocuments(

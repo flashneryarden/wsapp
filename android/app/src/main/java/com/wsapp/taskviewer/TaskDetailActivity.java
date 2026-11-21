@@ -287,16 +287,31 @@ public class TaskDetailActivity extends AppCompatActivity {
                         fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
                         doc.put("skippedAt", fmt.format(new Date()));
                         db.collection("skippedGroups").add(doc)
-                                .addOnSuccessListener(ref -> afterSkip(group, deleteExisting))
+                                .addOnSuccessListener(ref ->
+                                        recordGroupPreference(ref.getId(), group, deleteExisting))
                                 .addOnFailureListener(e -> Toast.makeText(this,
                                         "Failed to skip group: " + e.getMessage(),
                                         Toast.LENGTH_SHORT).show());
                     } else {
-                        afterSkip(group, deleteExisting);
+                        recordGroupPreference(
+                                snap.getDocuments().get(0).getId(), group, deleteExisting);
                     }
                 })
                 .addOnFailureListener(e -> Toast.makeText(this,
                         "Failed to skip group: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    private void recordGroupPreference(String groupId, String group, boolean deleteExisting) {
+        DeviceRegistration.recordSkippedGroup(groupId)
+                .addOnCompleteListener(result -> {
+                    if (!result.isSuccessful()) {
+                        Toast.makeText(this,
+                                "Group skipped globally, but saving this device's preference failed: "
+                                        + result.getException(),
+                                Toast.LENGTH_LONG).show();
+                    }
+                    afterSkip(group, deleteExisting);
+                });
     }
 
     private void afterSkip(String group, boolean deleteExisting) {

@@ -90,6 +90,32 @@ remain supported. Numeric task numbers are retained only as display/CLI
 references; database operations, notification links, and local alarms use the
 full document ID.
 
+### Firestore relationships
+
+The existing three collections also store many-to-many links as ID arrays:
+
+- `tasks.notifiedDeviceIds` contains IDs from `devices` for notifications accepted
+  by FCM. Query tasks with `where("notifiedDeviceIds", "array-contains", deviceId)`.
+  This records send acceptance, not delivery or read receipts. Topic broadcasts
+  cannot identify individual recipients and do not populate this field.
+- `devices.skippedGroupIds` contains IDs from `skippedGroups` selected by that
+  device. Query devices with `where("skippedGroupIds", "array-contains", groupId)`.
+  Android and iOS record these preferences when a group is skipped, including
+  when it was already globally skipped.
+
+Critical tasks still notify all registered devices, and skipped groups still
+apply globally. Each task retains its single source group in `origChatName`;
+matching it to `skippedGroups.name` remains name-based, not many-to-many.
+Existing records need no migration: absent arrays mean no recorded links.
+Past notifications and preferences are not backfilled.
+
+Links are recorded from now on and preserved by backend task uploads and device
+registration. Device IDs identify FCM tokens, not permanent installations; token
+rotation creates a new device record and does not migrate old preferences.
+Firestore does not enforce referential integrity: removing a device can leave
+historical IDs on tasks. Arrays suit small relationship sets; larger sets or
+per-link metadata should use linking collections instead.
+
 Build the debug APK with:
 
 ```powershell

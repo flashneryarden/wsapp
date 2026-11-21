@@ -1,5 +1,5 @@
 import { initializeApp, cert, type ServiceAccount } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import fs from "fs";
 import path from "path";
@@ -42,7 +42,7 @@ function firestoreTaskData(task: Task): Omit<Task, "firestoreId"> {
 export async function syncTaskToFirestore(task: Task): Promise<void> {
   if (!db) return;
   try {
-    await db.collection(COLLECTION).doc(task.firestoreId).set(firestoreTaskData(task));
+    await db.collection(COLLECTION).doc(task.firestoreId).set(firestoreTaskData(task), { merge: true });
   } catch (err) {
     console.log(`\x1b[33m⚠ Firestore sync failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
   }
@@ -52,7 +52,7 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
   if (!db) return;
 
   try {
-    await db.collection(COLLECTION).doc(task.firestoreId).set(firestoreTaskData(task));
+    await db.collection(COLLECTION).doc(task.firestoreId).set(firestoreTaskData(task), { merge: true });
   } catch (err) {
     console.log(`\x1b[33m⚠ Firestore sync failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
     return;
@@ -103,6 +103,19 @@ export async function publishNewTaskToFirestore(task: Task): Promise<void> {
           },
         },
       });
+
+      const notifiedDeviceIds = response.responses.flatMap((result, index) =>
+        result.success ? [batch[index]!.doc.id] : [],
+      );
+      if (notifiedDeviceIds.length > 0) {
+        try {
+          await db.collection(COLLECTION).doc(task.firestoreId).update({
+            notifiedDeviceIds: FieldValue.arrayUnion(...notifiedDeviceIds),
+          });
+        } catch (err) {
+          console.log(`\x1b[33m⚠ Notification-device links failed for task #${task.id}: ${(err as Error).message}\x1b[0m`);
+        }
+      }
 
       const staleDocs = response.responses
         .map((result, index) => ({ result, doc: batch[index]!.doc }))
@@ -175,7 +188,7 @@ export async function uploadAllTasks(tasks: Task[]): Promise<number> {
   if (!db) return 0;
   const batch = db.batch();
   for (const task of tasks) {
-    batch.set(db.collection(COLLECTION).doc(task.firestoreId), firestoreTaskData(task));
+    batch.set(db.collection(COLLECTION).doc(task.firestoreId), firestoreTaskData(task), { merge: true });
   }
   await batch.commit();
   return tasks.length;

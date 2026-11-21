@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.nio.charset.StandardCharsets;
@@ -34,9 +35,26 @@ public final class DeviceRegistration {
         FirebaseFirestore.getInstance()
                 .collection("devices")
                 .document(hashToken(token))
-                .set(device)
+                .set(device, SetOptions.merge())
                 .addOnFailureListener(error ->
                         Log.w("DeviceRegistration", "Unable to register FCM token", error));
+    }
+
+    public static com.google.android.gms.tasks.Task<Void> recordSkippedGroup(String groupId) {
+        return FirebaseMessaging.getInstance().getToken().onSuccessTask(token -> {
+            if (token == null || token.isEmpty()) {
+                throw new IllegalStateException("Unable to obtain FCM token for group preference");
+            }
+            Map<String, Object> device = new HashMap<>();
+            device.put("token", token);
+            device.put("platform", "android");
+            device.put("updatedAt", FieldValue.serverTimestamp());
+            device.put("skippedGroupIds", FieldValue.arrayUnion(groupId));
+            return FirebaseFirestore.getInstance()
+                    .collection("devices")
+                    .document(hashToken(token))
+                    .set(device, SetOptions.merge());
+        });
     }
 
     private static String hashToken(String token) {
